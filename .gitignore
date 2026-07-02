@@ -1,0 +1,21 @@
+.DS_Store
+bin/
+dist/
+coverage/
+
+# Local credentials and private keys.
+.env
+.env.*
+config.json
+config.yaml
+keys/
+*.p8
+*.pem
+*.key
+*.crt
+
+# Generated command output.
+*.log
+*.out
+reports/
+snapshots/
