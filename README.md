@@ -1,18 +1,11 @@
 # Apple Ads CLI by Lily
 
-Apple Ads CLI by Lily is an open-source, AI-friendly command line tool for
-Apple Ads campaign operations, reporting, and the Campaign Management API v5 to
-Platform API v1 migration.
+Apple Ads CLI by Lily is an open-source, business-first command line tool for
+planning Apple Ads campaign packages, reviewing AI-agent generated changes, and
+moving from Campaign Management API v5 to Platform API v1.
 
-The binary command is:
-
-```sh
-lily
-```
-
-This repository contains only the open-source CLI. Lily's hosted dashboard,
-credential vault, revenue warehouse, billing, and commercial analytics services
-live outside this repository.
+Apple Ads is an Apple brand. Apple Ads CLI by Lily is an independent,
+unofficial tool and is not affiliated with, endorsed by, or sponsored by Apple.
 
 ## Why This Exists
 
@@ -24,7 +17,8 @@ a business-first approach:
   attachment in one command
 - return JSON by default so Codex, Claude Code, CI, and humans can review plans
 - keep the current v5 API working while preparing for Apple Ads Platform API v1
-- optionally enrich reports through Lily Ads Revenue Analytics
+- optionally add keyword-level revenue analytics through Lily with RevenueCat
+  or AppsFlyer
 
 ## Install
 
