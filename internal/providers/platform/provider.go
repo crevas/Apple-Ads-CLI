@@ -293,7 +293,7 @@ func campaignReportPayload(input appleads.CampaignReportQuery) map[string]any {
 			"granularity": defaultString(input.Granularity, "DAILY"),
 		},
 		"options": map[string]any{
-			"includeRows": []string{"GRAND_TOTAL"},
+			"includeRows": []string{"ROW_TOTAL", "GRAND_TOTAL"},
 		},
 	}
 }

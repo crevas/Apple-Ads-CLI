@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3
+
+- Fixes Apple Ads campaign report requests by enabling row totals whenever
+  grand totals are requested.
+- Keeps the reserved Platform API report payload aligned with the same row and
+  grand total behavior.
+
 ## 0.1.2
 
 - Uses `APPLE_ADS_*` as the preferred local Apple Ads credential environment

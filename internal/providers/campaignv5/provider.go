@@ -281,7 +281,7 @@ func campaignReportPayload(input appleads.CampaignReportQuery) map[string]any {
 		"granularity":                defaultString(input.Granularity, "DAILY"),
 		"timeZone":                   defaultString(input.TimeZone, "ORTZ"),
 		"returnRecordsWithNoMetrics": false,
-		"returnRowTotals":            false,
+		"returnRowTotals":            true,
 		"returnGrandTotals":          true,
 		"selector": map[string]any{
 			"orderBy": []map[string]any{
