@@ -18,12 +18,15 @@ func (s PlanService) Create(input PlanCreateInput) (PlanCreateResult, error) {
 		Provider:      s.Provider.Name(),
 		Mode:          "dry-run",
 		CorrelationID: normalized.CorrelationID,
+		Review:        buildPlanReview(normalized),
 		Planned:       s.Provider.PlannedRequests(normalized),
 		NextActions: []string{
-			"Review the planned Apple Ads write operations.",
-			"Run again with --yes to execute the plan.",
+			"Present the campaign plan to the user in business terms.",
+			"Ask the user to choose Confirm and create, Modify plan, or Cancel.",
+			"Use native confirmation controls when the host application provides them.",
 		},
-		SafetyReminder: "Write operations are dry-run by default for AI-agent safety.",
+		Confirmation:   buildPlanConfirmation(),
+		SafetyReminder: "Write operations are dry-run by default. Execute only after explicit user approval.",
 	}
 
 	if !normalized.Execute {
@@ -32,6 +35,7 @@ func (s PlanService) Create(input PlanCreateInput) (PlanCreateResult, error) {
 
 	result.Mode = "execute"
 	result.NextActions = nil
+	result.Confirmation = nil
 
 	campaignResp, campaignID, err := s.Provider.CreateCampaign(s.Client, CampaignCreate{
 		Name:        normalized.Name,
@@ -153,6 +157,110 @@ func (s PlanService) Create(input PlanCreateInput) (PlanCreateResult, error) {
 		result.Executed = append(result.Executed, ExecutedStep{Step: "create_ad", ID: adID, Response: adResp})
 	}
 	return result, nil
+}
+
+func buildPlanReview(input PlanCreateInput) PlanReview {
+	return PlanReview{
+		CampaignName: input.Name,
+		AppID:        input.AppID,
+		Countries:    input.Countries,
+		DailyBudget:  Money{Amount: input.DailyBudget, Currency: input.Currency},
+		Status:       input.Status,
+		Supply:       input.Supply,
+		AdGroupName:  input.AdGroupName,
+		DefaultBid:   Money{Amount: input.DefaultBid, Currency: input.Currency},
+		CPAGoal:      optionalMoney(input.CPAGoal, input.Currency),
+		Keywords:     countPlanKeywords(input.Keywords),
+		Negatives:    countPlanNegatives(input.CampaignNegativeKeywords, input.AdGroupNegativeKeywords),
+		Creative:     input.Creative,
+	}
+}
+
+func optionalMoney(amount string, currency string) *Money {
+	if amount == "" {
+		return nil
+	}
+	return &Money{Amount: amount, Currency: currency}
+}
+
+func countPlanKeywords(keywords []KeywordPlan) PlanKeywordCounts {
+	counts := PlanKeywordCounts{Total: len(keywords)}
+	for _, keyword := range keywords {
+		switch keyword.MatchType {
+		case "EXACT":
+			counts.Exact++
+		case "BROAD":
+			counts.Broad++
+		}
+	}
+	return counts
+}
+
+func countPlanNegatives(campaign []NegativeKeywordPlan, adGroup []NegativeKeywordPlan) PlanNegativeKeywordCounts {
+	counts := PlanNegativeKeywordCounts{
+		Total:    len(campaign) + len(adGroup),
+		Campaign: len(campaign),
+		AdGroup:  len(adGroup),
+	}
+	add := func(keyword NegativeKeywordPlan, campaignLevel bool) {
+		switch keyword.MatchType {
+		case "EXACT":
+			counts.Exact++
+			if campaignLevel {
+				counts.CampaignExact++
+			} else {
+				counts.AdGroupExact++
+			}
+		case "BROAD":
+			counts.Broad++
+			if campaignLevel {
+				counts.CampaignBroad++
+			} else {
+				counts.AdGroupBroad++
+			}
+		}
+	}
+	for _, keyword := range campaign {
+		add(keyword, true)
+	}
+	for _, keyword := range adGroup {
+		add(keyword, false)
+	}
+	return counts
+}
+
+func buildPlanConfirmation() *PlanConfirmation {
+	return &PlanConfirmation{
+		Title:         "Review Apple Ads campaign plan",
+		Prompt:        "Choose whether to create this Apple Ads campaign package, modify the plan, or cancel without making changes.",
+		DefaultChoice: "modify",
+		Choices: []PlanConfirmationChoice{
+			{
+				ID:            "confirm_create",
+				Label:         "Confirm and create",
+				Description:   "Create the campaign, ad group, keywords, negative keywords, and selected creative in Apple Ads.",
+				RequiresWrite: true,
+			},
+			{
+				ID:            "modify_plan",
+				Label:         "Modify plan",
+				Description:   "Adjust budget, status, CPA goal, keywords, negatives, or creative before creating anything.",
+				RequiresWrite: false,
+			},
+			{
+				ID:            "cancel",
+				Label:         "Cancel",
+				Description:   "Do nothing in Apple Ads.",
+				RequiresWrite: false,
+			},
+		},
+		AgentGuidance: []string{
+			"Summarize the plan using the review object before asking for approval.",
+			"Do not show shell commands, file paths, or run scripts to non-technical users unless they ask.",
+			"Use the host application's native confirmation UI when available.",
+			"Execute writes only after the user explicitly chooses confirm_create.",
+		},
+	}
 }
 
 func defaultCreativeName(input PlanCreateInput) string {

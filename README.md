@@ -16,6 +16,7 @@ a business-first approach:
 - create campaign, ad group, keywords, negative keywords, CPA goal, and creative
   attachment in one command
 - return JSON by default so Codex, Claude Code, CI, and humans can review plans
+  through business summaries and confirmation choices
 - keep the current v5 API working while preparing for Apple Ads Platform API v1
 - optionally add keyword-level revenue analytics through Lily with RevenueCat
   or AppsFlyer
@@ -82,6 +83,8 @@ lily ads plan create \
 ```
 
 Dry-run is the default. Add `--yes` or `--execute` to perform writes.
+Dry-run responses include `review` and `confirmation` objects so AI agents can
+show a business summary and ask the user to confirm, modify, or cancel.
 
 Preview the same business command against the next-generation Platform
 provider:
@@ -158,9 +161,24 @@ It plans or executes:
 Agents should:
 
 - call without `--yes` first
-- show the JSON plan to the user
+- summarize the `review` object in business terms
+- use the `confirmation` object to ask the user to confirm, modify, or cancel
+- use native confirmation UI when the host application provides it
+- avoid showing shell commands or file paths to non-technical users unless asked
 - re-run with `--yes` only after explicit user confirmation
 - use `--correlation-id` to connect CLI output to an agent trace
+
+## Codex Skill
+
+This repository includes a Codex skill at:
+
+```txt
+agent-skills/codex/apple-ads-cli-by-lily
+```
+
+The skill teaches agents the safe Lily workflow: local Apple Ads credentials for
+Apple operations, optional Lily Ads Revenue Analytics for revenue/ROAS, dry-run
+plans first, and user-facing confirmation choices before writes.
 
 ## Lily Ads Revenue Analytics
 

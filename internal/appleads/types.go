@@ -66,15 +66,65 @@ type ExecutedStep struct {
 	Response any    `json:"response,omitempty"`
 }
 
+type PlanKeywordCounts struct {
+	Total int `json:"total"`
+	Exact int `json:"exact"`
+	Broad int `json:"broad"`
+}
+
+type PlanNegativeKeywordCounts struct {
+	Total         int `json:"total"`
+	Campaign      int `json:"campaign"`
+	AdGroup       int `json:"adGroup"`
+	Exact         int `json:"exact"`
+	Broad         int `json:"broad"`
+	CampaignExact int `json:"campaignExact"`
+	CampaignBroad int `json:"campaignBroad"`
+	AdGroupExact  int `json:"adGroupExact"`
+	AdGroupBroad  int `json:"adGroupBroad"`
+}
+
+type PlanReview struct {
+	CampaignName string                    `json:"campaignName"`
+	AppID        string                    `json:"appId"`
+	Countries    []string                  `json:"countries"`
+	DailyBudget  Money                     `json:"dailyBudget"`
+	Status       string                    `json:"status"`
+	Supply       string                    `json:"supply"`
+	AdGroupName  string                    `json:"adGroupName"`
+	DefaultBid   Money                     `json:"defaultBid"`
+	CPAGoal      *Money                    `json:"cpaGoal,omitempty"`
+	Keywords     PlanKeywordCounts         `json:"keywords"`
+	Negatives    PlanNegativeKeywordCounts `json:"negativeKeywords"`
+	Creative     CreativeSelection         `json:"creative"`
+}
+
+type PlanConfirmationChoice struct {
+	ID            string `json:"id"`
+	Label         string `json:"label"`
+	Description   string `json:"description"`
+	RequiresWrite bool   `json:"requiresWrite"`
+}
+
+type PlanConfirmation struct {
+	Title         string                   `json:"title"`
+	Prompt        string                   `json:"prompt"`
+	DefaultChoice string                   `json:"defaultChoice"`
+	Choices       []PlanConfirmationChoice `json:"choices"`
+	AgentGuidance []string                 `json:"agentGuidance"`
+}
+
 type PlanCreateResult struct {
-	Tool           string           `json:"tool"`
-	Provider       string           `json:"provider"`
-	Mode           string           `json:"mode"`
-	CorrelationID  string           `json:"correlationId,omitempty"`
-	Planned        []PlannedRequest `json:"planned"`
-	Executed       []ExecutedStep   `json:"executed,omitempty"`
-	NextActions    []string         `json:"nextActions,omitempty"`
-	SafetyReminder string           `json:"safetyReminder,omitempty"`
+	Tool           string            `json:"tool"`
+	Provider       string            `json:"provider"`
+	Mode           string            `json:"mode"`
+	CorrelationID  string            `json:"correlationId,omitempty"`
+	Review         PlanReview        `json:"review"`
+	Planned        []PlannedRequest  `json:"planned"`
+	Executed       []ExecutedStep    `json:"executed,omitempty"`
+	NextActions    []string          `json:"nextActions,omitempty"`
+	Confirmation   *PlanConfirmation `json:"confirmation,omitempty"`
+	SafetyReminder string            `json:"safetyReminder,omitempty"`
 }
 
 type CampaignCreate struct {

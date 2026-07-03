@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apple Ads CLI by Lily"
+  short_description: "Use Lily's AI-friendly Apple Ads CLI safely."
+  default_prompt: "Use Apple Ads CLI by Lily to plan, review, and optimize Apple Ads campaigns with safe confirmation and optional Lily Ads Revenue Analytics enrichment."

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5
+
+- Adds business-facing `review` and `confirmation` objects to campaign plan
+  dry-runs so AI agents can show confirm, modify, and cancel choices instead of
+  raw shell instructions.
+- Adds a Codex skill for safe Apple Ads CLI by Lily workflows.
+- Updates agent guidance to keep CLI commands internal unless the user asks for
+  technical details.
+
 ## 0.1.4
 
 - Adds Apple Ads account binding context to Lily Ads Revenue Analytics requests
