@@ -22,6 +22,18 @@ a business-first approach:
 
 ## Install
 
+Install with Homebrew:
+
+```sh
+brew install crevas/tap/lilyads
+```
+
+Or use the hosted install script:
+
+```sh
+curl -fsSL https://www.chatlily.ai/apple-ads-cli/install | bash
+```
+
 Install from source with Go:
 
 ```sh
@@ -36,7 +48,7 @@ cd Apple-Ads-CLI
 go build -o bin/lily ./cmd/lily
 ```
 
-Release binaries will be attached to GitHub Releases:
+Release binaries are also available through the repository install script:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/crevas/Apple-Ads-CLI/main/install.sh | bash
