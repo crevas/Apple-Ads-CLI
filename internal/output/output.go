@@ -1,17 +1,21 @@
 package output
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 )
 
 func JSON(w io.Writer, value any) error {
-	data, err := json.MarshalIndent(value, "", "  ")
-	if err != nil {
+	var data bytes.Buffer
+	encoder := json.NewEncoder(&data)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(value); err != nil {
 		return fmt.Errorf("encode json: %w", err)
 	}
-	_, err = fmt.Fprintln(w, string(data))
+	_, err := w.Write(data.Bytes())
 	return err
 }
 

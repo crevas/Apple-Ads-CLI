@@ -17,7 +17,7 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/providers/platform"
 )
 
-const version = "0.1.0"
+const version = "0.1.1"
 
 type globalOptions struct {
 	Provider string
@@ -106,8 +106,9 @@ func runLogin(args []string, stdout io.Writer, stderr io.Writer) int {
 			"source": lilycloud.ProductName,
 			"status": "token_required",
 			"nextActions": []string{
-				"Create a Lily CLI token in Lily Ads Revenue Analytics.",
-				"Run `lily login --token <token>`.",
+				"Optional: create a Lily CLI token in Lily Ads Revenue Analytics if you want keyword-level revenue and ROAS enrichment.",
+				"`lily login --token <token>` is not required for Apple Ads campaign planning or Apple Ads API operations.",
+				"To manage Apple Ads, configure Apple Ads API credentials locally and run `lily ads doctor`. Private keys stay on this machine.",
 			},
 		}, stderr)
 	}
@@ -178,21 +179,56 @@ func runDoctor(globals globalOptions, stdout io.Writer, stderr io.Writer) int {
 	if globals.Provider != "" {
 		cfg.Provider = config.NormalizeProvider(globals.Provider)
 	}
+	authErr := cfg.ValidateAuth()
+	scopeErr := cfg.ValidateProviderScope()
+	lilyLoggedIn := strings.TrimSpace(cfg.LilyToken) != ""
+	appleAdsCredentials := map[string]any{
+		"configured":         authErr == nil,
+		"storage":            "local_environment_or_config_file",
+		"configPath":         config.ConfigPath(),
+		"privateKeyUploaded": false,
+		"requiredFor": []string{
+			"Apple Ads API calls",
+			"executed campaign changes",
+			"Apple Ads reporting",
+		},
+	}
+	if authErr != nil {
+		appleAdsCredentials["error"] = authErr.Error()
+	}
+	providerScope := map[string]any{
+		"configured": scopeErr == nil,
+		"provider":   cfg.Provider,
+	}
+	if scopeErr != nil {
+		providerScope["error"] = scopeErr.Error()
+	}
+
 	checks := map[string]any{
-		"tool":         "Apple Ads CLI by Lily",
-		"version":      version,
-		"provider":     cfg.Provider,
-		"configPath":   config.ConfigPath(),
-		"auth":         cfg.ValidateAuth() == nil,
-		"scope":        cfg.ValidateProviderScope() == nil,
-		"v5Base":       cfg.CampaignV5Base,
-		"platformBase": cfg.PlatformBase,
-	}
-	if err := cfg.ValidateAuth(); err != nil {
-		checks["authError"] = err.Error()
-	}
-	if err := cfg.ValidateProviderScope(); err != nil {
-		checks["scopeError"] = err.Error()
+		"tool":                  "Apple Ads CLI by Lily",
+		"version":               version,
+		"provider":              cfg.Provider,
+		"configPath":            config.ConfigPath(),
+		"appleAdsReady":         authErr == nil && scopeErr == nil,
+		"appleAdsCredentials":   appleAdsCredentials,
+		"providerScope":         providerScope,
+		"v5Base":                cfg.CampaignV5Base,
+		"platformBase":          cfg.PlatformBase,
+		"revenueAnalyticsReady": lilyLoggedIn,
+		"lilyLogin": map[string]any{
+			"loggedIn":                      lilyLoggedIn,
+			"requiredForAppleAdsOperations": false,
+			"optionalFor": []string{
+				"keyword-level revenue analytics",
+				"paid-user and ROAS enrichment",
+				"Lily Ads Revenue Analytics cloud reports",
+			},
+		},
+		"nextSteps": []string{
+			"Configure Apple Ads API credentials locally with environment variables or the config file. Private keys stay on this machine.",
+			"Run `lily ads doctor` again until appleAdsReady is true.",
+			"Optional: run `lily login --token <token>` only when you want Lily Ads Revenue Analytics revenue and ROAS enrichment.",
+		},
 	}
 	return printValue(stdout, globals.Output, checks, stderr)
 }
@@ -679,6 +715,10 @@ func printHelp(w io.Writer) {
 		"  --provider campaignv5|platform   API provider (default: campaignv5)",
 		"  -o, --output json                output format",
 		"  -v, --verbose                    verbose API logging",
+		"",
+		"Auth model:",
+		"  Apple Ads API credentials are configured locally. Private keys stay on this machine.",
+		"  Lily login is optional and only enables Lily Ads Revenue Analytics revenue/ROAS enrichment.",
 	)
 }
 
@@ -692,6 +732,9 @@ func printAdsHelp(w io.Writer) {
 		"  lily ads revenue summary [flags]",
 		"  lily ads suggestions cpa --app-id <adamId>",
 		"  lily ads recommendations apply --type target-cpa",
+		"",
+		"Apple Ads commands use local Apple Ads API credentials. Run `lily ads doctor` to check setup.",
+		"Lily login is optional and only enables Lily Ads Revenue Analytics enrichment.",
 	)
 }
 

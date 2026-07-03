@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1
+
+- Clarifies that Lily login is optional and only enables Lily Ads Revenue
+  Analytics enrichment.
+- Updates `lily auth status` and `lily ads doctor` so AI agents distinguish
+  local Apple Ads API credentials from optional Lily revenue login.
+- Keeps Apple Ads private key setup local and explicit in structured next steps.
+
 ## 0.1.0
 
 - Initial open-source Apple Ads CLI by Lily.

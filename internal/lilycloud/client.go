@@ -37,11 +37,15 @@ type RevenueStatus struct {
 }
 
 type AuthStatus struct {
-	Source     string `json:"source"`
-	LoggedIn   bool   `json:"loggedIn"`
-	Configured bool   `json:"configured"`
-	BaseURL    string `json:"baseUrl"`
-	TokenHint  string `json:"tokenHint,omitempty"`
+	Source                        string   `json:"source"`
+	LoggedIn                      bool     `json:"loggedIn"`
+	Configured                    bool     `json:"configured"`
+	BaseURL                       string   `json:"baseUrl"`
+	TokenHint                     string   `json:"tokenHint,omitempty"`
+	Scope                         string   `json:"scope"`
+	RequiredForAppleAdsOperations bool     `json:"requiredForAppleAdsOperations"`
+	OptionalFor                   []string `json:"optionalFor"`
+	NextSteps                     []string `json:"nextSteps"`
 }
 
 func New(cfg config.Config) Client {
@@ -54,11 +58,22 @@ func New(cfg config.Config) Client {
 
 func (c Client) AuthStatus() AuthStatus {
 	return AuthStatus{
-		Source:     ProductName,
-		LoggedIn:   c.Token != "",
-		Configured: c.Token != "",
-		BaseURL:    c.BaseURL,
-		TokenHint:  tokenHint(c.Token),
+		Source:                        ProductName,
+		LoggedIn:                      c.Token != "",
+		Configured:                    c.Token != "",
+		BaseURL:                       c.BaseURL,
+		TokenHint:                     tokenHint(c.Token),
+		Scope:                         "optional_revenue_analytics",
+		RequiredForAppleAdsOperations: false,
+		OptionalFor: []string{
+			"keyword-level revenue analytics",
+			"paid-user and ROAS enrichment",
+			"Lily Ads Revenue Analytics cloud reports",
+		},
+		NextSteps: []string{
+			"To manage Apple Ads, configure Apple Ads API credentials locally and run `lily ads doctor`. Private keys stay on this machine.",
+			"Optional: run `lily login --token <token>` only when you want Lily Ads Revenue Analytics revenue and ROAS enrichment.",
+		},
 	}
 }
 

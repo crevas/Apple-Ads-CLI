@@ -161,8 +161,10 @@ Agents should:
 
 ## Lily Ads Revenue Analytics
 
-Core Apple Ads operations are free and open source. Revenue enrichment is
-exposed through Lily Ads Revenue Analytics:
+Core Apple Ads operations are free and open source. Apple Ads API credentials
+are configured locally through environment variables or
+`~/.config/lily/apple-ads.json`; private keys stay on your machine. Lily login is
+optional and only enables revenue enrichment through Lily Ads Revenue Analytics:
 
 ```sh
 lily login --token <token>

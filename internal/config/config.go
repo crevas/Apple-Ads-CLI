@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -132,7 +133,8 @@ func (c Config) ValidateAuth() error {
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("missing required auth config: %s", strings.Join(missing, ", "))
+		sort.Strings(missing)
+		return fmt.Errorf("missing required Apple Ads local credential config: %s", strings.Join(missing, ", "))
 	}
 	return nil
 }

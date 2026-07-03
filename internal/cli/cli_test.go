@@ -1,6 +1,11 @@
 package cli
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/crevas/Apple-Ads-CLI/internal/appleads"
@@ -56,4 +61,91 @@ func TestParsePlanCreateBusinessOptions(t *testing.T) {
 	if normalized.Execute {
 		t.Fatal("Execute = true, want false by default")
 	}
+}
+
+func TestAuthStatusExplainsLilyLoginIsOptional(t *testing.T) {
+	t.Setenv("LILY_ADS_CONFIG", t.TempDir()+"/apple-ads.json")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(context.Background(), []string{"auth", "status"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run returned code %d, stderr: %s", code, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("auth status output is not JSON: %v\n%s", err, stdout.String())
+	}
+
+	if got := payload["requiredForAppleAdsOperations"]; got != false {
+		t.Fatalf("requiredForAppleAdsOperations = %v, want false", got)
+	}
+	steps, ok := payload["nextSteps"].([]any)
+	if !ok {
+		t.Fatalf("nextSteps missing or invalid: %#v", payload["nextSteps"])
+	}
+	joinedSteps := joinAnyStrings(steps)
+	if !strings.Contains(joinedSteps, "lily ads doctor") {
+		t.Fatalf("nextSteps = %q, want lily ads doctor guidance", joinedSteps)
+	}
+	if !strings.Contains(joinedSteps, "Private keys stay on this machine") {
+		t.Fatalf("nextSteps = %q, want local private-key guidance", joinedSteps)
+	}
+}
+
+func TestDoctorSeparatesAppleAdsCredentialsFromLilyLogin(t *testing.T) {
+	t.Setenv("LILY_ADS_CONFIG", t.TempDir()+"/apple-ads.json")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(context.Background(), []string{"ads", "doctor"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run returned code %d, stderr: %s", code, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("doctor output is not JSON: %v\n%s", err, stdout.String())
+	}
+	if _, ok := payload["auth"]; ok {
+		t.Fatalf("doctor output should not expose ambiguous top-level auth field: %#v", payload["auth"])
+	}
+
+	credentials, ok := payload["appleAdsCredentials"].(map[string]any)
+	if !ok {
+		t.Fatalf("appleAdsCredentials missing or invalid: %#v", payload["appleAdsCredentials"])
+	}
+	if got := credentials["configured"]; got != false {
+		t.Fatalf("appleAdsCredentials.configured = %v, want false", got)
+	}
+	if got := credentials["privateKeyUploaded"]; got != false {
+		t.Fatalf("appleAdsCredentials.privateKeyUploaded = %v, want false", got)
+	}
+	if got := credentials["error"]; !strings.Contains(toString(got), "Apple Ads local credential") {
+		t.Fatalf("appleAdsCredentials.error = %v, want local credential wording", got)
+	}
+
+	lilyLogin, ok := payload["lilyLogin"].(map[string]any)
+	if !ok {
+		t.Fatalf("lilyLogin missing or invalid: %#v", payload["lilyLogin"])
+	}
+	if got := lilyLogin["requiredForAppleAdsOperations"]; got != false {
+		t.Fatalf("lilyLogin.requiredForAppleAdsOperations = %v, want false", got)
+	}
+}
+
+func joinAnyStrings(values []any) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, toString(value))
+	}
+	return strings.Join(parts, "\n")
+}
+
+func toString(value any) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(value))
 }
