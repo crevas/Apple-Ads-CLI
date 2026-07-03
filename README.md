@@ -168,15 +168,30 @@ Agents should:
 - re-run with `--yes` only after explicit user confirmation
 - use `--correlation-id` to connect CLI output to an agent trace
 
-## Codex Skill
+## Agent Skills
 
-This repository includes a Codex skill at:
+This repository includes AI agent skills for Codex and Claude Code:
 
 ```txt
 agent-skills/codex/apple-ads-cli-by-lily
+agent-skills/claude/apple-ads-cli-by-lily
 ```
 
-The skill teaches agents the safe Lily workflow: local Apple Ads credentials for
+Install the Codex skill:
+
+```sh
+mkdir -p ~/.codex/skills
+cp -R agent-skills/codex/apple-ads-cli-by-lily ~/.codex/skills/
+```
+
+Install the Claude Code skill:
+
+```sh
+mkdir -p ~/.claude/skills
+cp -R agent-skills/claude/apple-ads-cli-by-lily ~/.claude/skills/
+```
+
+Both skills teach agents the safe Lily workflow: local Apple Ads credentials for
 Apple operations, optional Lily Ads Revenue Analytics for revenue/ROAS, dry-run
 plans first, and user-facing confirmation choices before writes.
 

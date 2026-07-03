@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Adds a Claude Code skill alongside the Codex skill for Apple Ads CLI by Lily.
+- Documents installation paths for both Codex and Claude Code agent skills.
+
 ## 0.1.5
 
 - Adds business-facing `review` and `confirmation` objects to campaign plan
