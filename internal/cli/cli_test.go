@@ -125,6 +125,12 @@ func TestDoctorSeparatesAppleAdsCredentialsFromLilyLogin(t *testing.T) {
 	if got := credentials["error"]; !strings.Contains(toString(got), "Apple Ads local credential") {
 		t.Fatalf("appleAdsCredentials.error = %v, want local credential wording", got)
 	}
+	if got := credentials["error"]; !strings.Contains(toString(got), "APPLE_ADS_CLIENT_ID") {
+		t.Fatalf("appleAdsCredentials.error = %v, want APPLE_ADS_CLIENT_ID", got)
+	}
+	if got := credentials["error"]; strings.Contains(toString(got), "LILY_ADS_CLIENT_ID") {
+		t.Fatalf("appleAdsCredentials.error = %v, should not use Lily prefix for Apple credentials", got)
+	}
 
 	lilyLogin, ok := payload["lilyLogin"].(map[string]any)
 	if !ok {

@@ -54,24 +54,24 @@ func Load() Config {
 	}
 
 	cfg.Provider = firstNonEmpty(
-		os.Getenv("LILY_ADS_PROVIDER"),
 		os.Getenv("APPLE_ADS_PROVIDER"),
+		os.Getenv("LILY_ADS_PROVIDER"),
 		cfg.Provider,
 	)
-	cfg.CampaignV5Base = firstNonEmpty(os.Getenv("LILY_ADS_V5_BASE_URL"), cfg.CampaignV5Base)
-	cfg.PlatformBase = firstNonEmpty(os.Getenv("LILY_ADS_PLATFORM_BASE_URL"), cfg.PlatformBase)
+	cfg.CampaignV5Base = firstNonEmpty(os.Getenv("APPLE_ADS_V5_BASE_URL"), os.Getenv("LILY_ADS_V5_BASE_URL"), cfg.CampaignV5Base)
+	cfg.PlatformBase = firstNonEmpty(os.Getenv("APPLE_ADS_PLATFORM_BASE_URL"), os.Getenv("LILY_ADS_PLATFORM_BASE_URL"), cfg.PlatformBase)
 	cfg.LilyCloudBase = firstNonEmpty(os.Getenv("LILY_CLOUD_BASE_URL"), cfg.LilyCloudBase)
 	cfg.LilyToken = firstNonEmpty(os.Getenv("LILY_TOKEN"), os.Getenv("LILY_API_TOKEN"), cfg.LilyToken)
-	cfg.TokenURL = firstNonEmpty(os.Getenv("LILY_ADS_TOKEN_URL"), cfg.TokenURL)
-	cfg.ClientID = firstNonEmpty(os.Getenv("LILY_ADS_CLIENT_ID"), os.Getenv("APPLE_ADS_CLIENT_ID"), cfg.ClientID)
-	cfg.TeamID = firstNonEmpty(os.Getenv("LILY_ADS_TEAM_ID"), os.Getenv("APPLE_ADS_TEAM_ID"), cfg.TeamID)
-	cfg.KeyID = firstNonEmpty(os.Getenv("LILY_ADS_KEY_ID"), os.Getenv("APPLE_ADS_KEY_ID"), cfg.KeyID)
-	cfg.OrgID = firstNonEmpty(os.Getenv("LILY_ADS_ORG_ID"), os.Getenv("APPLE_ADS_ORG_ID"), cfg.OrgID)
-	cfg.AdAccountID = firstNonEmpty(os.Getenv("LILY_ADS_AD_ACCOUNT_ID"), os.Getenv("APPLE_ADS_AD_ACCOUNT_ID"), cfg.AdAccountID)
-	cfg.PrivateKeyPath = firstNonEmpty(os.Getenv("LILY_ADS_PRIVATE_KEY_PATH"), os.Getenv("APPLE_ADS_PRIVATE_KEY_PATH"), cfg.PrivateKeyPath)
-	cfg.DefaultCurrency = strings.ToUpper(firstNonEmpty(os.Getenv("LILY_ADS_CURRENCY"), cfg.DefaultCurrency))
+	cfg.TokenURL = firstNonEmpty(os.Getenv("APPLE_ADS_TOKEN_URL"), os.Getenv("LILY_ADS_TOKEN_URL"), cfg.TokenURL)
+	cfg.ClientID = firstNonEmpty(os.Getenv("APPLE_ADS_CLIENT_ID"), os.Getenv("LILY_ADS_CLIENT_ID"), cfg.ClientID)
+	cfg.TeamID = firstNonEmpty(os.Getenv("APPLE_ADS_TEAM_ID"), os.Getenv("LILY_ADS_TEAM_ID"), cfg.TeamID)
+	cfg.KeyID = firstNonEmpty(os.Getenv("APPLE_ADS_KEY_ID"), os.Getenv("LILY_ADS_KEY_ID"), cfg.KeyID)
+	cfg.OrgID = firstNonEmpty(os.Getenv("APPLE_ADS_ORG_ID"), os.Getenv("LILY_ADS_ORG_ID"), cfg.OrgID)
+	cfg.AdAccountID = firstNonEmpty(os.Getenv("APPLE_ADS_AD_ACCOUNT_ID"), os.Getenv("LILY_ADS_AD_ACCOUNT_ID"), cfg.AdAccountID)
+	cfg.PrivateKeyPath = firstNonEmpty(os.Getenv("APPLE_ADS_PRIVATE_KEY_PATH"), os.Getenv("LILY_ADS_PRIVATE_KEY_PATH"), cfg.PrivateKeyPath)
+	cfg.DefaultCurrency = strings.ToUpper(firstNonEmpty(os.Getenv("APPLE_ADS_CURRENCY"), os.Getenv("LILY_ADS_CURRENCY"), cfg.DefaultCurrency))
 
-	if raw := os.Getenv("LILY_ADS_TIMEOUT_MS"); raw != "" {
+	if raw := firstNonEmpty(os.Getenv("APPLE_ADS_TIMEOUT_MS"), os.Getenv("LILY_ADS_TIMEOUT_MS")); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
 			cfg.RequestTimeoutMs = parsed
 		}
@@ -123,10 +123,10 @@ func (c Config) Timeout() time.Duration {
 func (c Config) ValidateAuth() error {
 	var missing []string
 	for name, value := range map[string]string{
-		"LILY_ADS_CLIENT_ID":        c.ClientID,
-		"LILY_ADS_TEAM_ID":          c.TeamID,
-		"LILY_ADS_KEY_ID":           c.KeyID,
-		"LILY_ADS_PRIVATE_KEY_PATH": c.PrivateKeyPath,
+		"APPLE_ADS_CLIENT_ID":        c.ClientID,
+		"APPLE_ADS_TEAM_ID":          c.TeamID,
+		"APPLE_ADS_KEY_ID":           c.KeyID,
+		"APPLE_ADS_PRIVATE_KEY_PATH": c.PrivateKeyPath,
 	} {
 		if strings.TrimSpace(value) == "" {
 			missing = append(missing, name)
@@ -143,11 +143,11 @@ func (c Config) ValidateProviderScope() error {
 	switch NormalizeProvider(c.Provider) {
 	case "campaignv5":
 		if strings.TrimSpace(c.OrgID) == "" {
-			return errors.New("LILY_ADS_ORG_ID is required for campaignv5 provider")
+			return errors.New("APPLE_ADS_ORG_ID is required for campaignv5 provider")
 		}
 	case "platform":
 		if strings.TrimSpace(c.AdAccountID) == "" {
-			return errors.New("LILY_ADS_AD_ACCOUNT_ID is required for platform provider")
+			return errors.New("APPLE_ADS_AD_ACCOUNT_ID is required for platform provider")
 		}
 	default:
 		return fmt.Errorf("unsupported provider %q", c.Provider)

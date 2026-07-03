@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2
+
+- Uses `APPLE_ADS_*` as the preferred local Apple Ads credential environment
+  variable prefix.
+- Keeps `LILY_ADS_*` aliases for compatibility while making doctor/help output
+  avoid Lily-branded names for Apple credentials.
+
 ## 0.1.1
 
 - Clarifies that Lily login is optional and only enables Lily Ads Revenue

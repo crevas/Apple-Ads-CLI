@@ -17,7 +17,7 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/providers/platform"
 )
 
-const version = "0.1.1"
+const version = "0.1.2"
 
 type globalOptions struct {
 	Provider string

@@ -102,29 +102,32 @@ lily --provider platform ads plan create \
 Environment variables:
 
 ```sh
-export LILY_ADS_PROVIDER=campaignv5
-export LILY_ADS_CLIENT_ID=...
-export LILY_ADS_TEAM_ID=...
-export LILY_ADS_KEY_ID=...
-export LILY_ADS_ORG_ID=...
-export LILY_ADS_PRIVATE_KEY_PATH=/path/to/AuthKey.p8
+export APPLE_ADS_PROVIDER=campaignv5
+export APPLE_ADS_CLIENT_ID=...
+export APPLE_ADS_TEAM_ID=...
+export APPLE_ADS_KEY_ID=...
+export APPLE_ADS_ORG_ID=...
+export APPLE_ADS_PRIVATE_KEY_PATH=/path/to/AuthKey.p8
 ```
 
 For the Platform API provider:
 
 ```sh
-export LILY_ADS_PROVIDER=platform
-export LILY_ADS_AD_ACCOUNT_ID=...
+export APPLE_ADS_PROVIDER=platform
+export APPLE_ADS_AD_ACCOUNT_ID=...
 ```
 
 Optional:
 
 ```sh
-export LILY_ADS_CURRENCY=USD
-export LILY_ADS_V5_BASE_URL=https://api.searchads.apple.com/api/v5
-export LILY_ADS_PLATFORM_BASE_URL=https://api.ads.apple.com/v1
+export APPLE_ADS_CURRENCY=USD
+export APPLE_ADS_V5_BASE_URL=https://api.searchads.apple.com/api/v5
+export APPLE_ADS_PLATFORM_BASE_URL=https://api.ads.apple.com/v1
 export LILY_CLOUD_BASE_URL=https://www.chatlily.ai
 ```
+
+Older `LILY_ADS_*` aliases are still supported for compatibility, but new local
+Apple Ads credentials should use the `APPLE_ADS_*` prefix.
 
 You can also create:
 
