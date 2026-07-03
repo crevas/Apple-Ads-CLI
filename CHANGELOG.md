@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.4
+
+- Adds Apple Ads account binding context to Lily Ads Revenue Analytics requests
+  so revenue enrichment cannot be mixed with a different local Apple Ads account.
+- Treats Lily Ads Revenue Analytics account mismatches as a structured
+  `account_mismatch` status.
+- Ensures `lily login` and `lily logout` do not persist Apple Ads credential
+  values that were only provided through environment variables.
+
 ## 0.1.3
 
 - Fixes Apple Ads campaign report requests by enabling row totals whenever

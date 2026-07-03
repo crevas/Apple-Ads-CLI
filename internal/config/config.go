@@ -82,13 +82,17 @@ func Load() Config {
 }
 
 func Save(update Config) error {
-	current := Load()
+	current, _ := loadFileConfig()
 	merged := merge(current, update)
+	return writeConfig(merged)
+}
+
+func writeConfig(cfg Config) error {
 	path := ConfigPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(merged, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -96,21 +100,15 @@ func Save(update Config) error {
 }
 
 func SaveLilyToken(token string) error {
-	return Save(Config{LilyToken: strings.TrimSpace(token)})
+	current, _ := loadFileConfig()
+	current.LilyToken = strings.TrimSpace(token)
+	return writeConfig(current)
 }
 
 func ClearLilyToken() error {
-	current := Load()
+	current, _ := loadFileConfig()
 	current.LilyToken = ""
-	path := ConfigPath()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(current, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0o600)
+	return writeConfig(current)
 }
 
 func (c Config) Timeout() time.Duration {

@@ -17,7 +17,7 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/providers/platform"
 )
 
-const version = "0.1.3"
+const version = "0.1.4"
 
 type globalOptions struct {
 	Provider string
@@ -326,11 +326,11 @@ func runCampaignReport(ctx context.Context, args []string, globals globalOptions
 		Notice: "Revenue enrichment was skipped by --no-revenue.",
 	}
 	if !noRevenue {
-		revenue = lilycloud.New(cfg).RevenueSummary(lilycloud.RevenueQuery{
+		revenue = lilycloud.New(cfg).RevenueSummary(revenueQueryWithAppleAdsContext(cfg, lilycloud.RevenueQuery{
 			AppID: input.AppID,
 			From:  input.From,
 			To:    input.To,
-		})
+		}))
 	}
 
 	return printValue(stdout, globals.Output, map[string]any{
@@ -370,9 +370,11 @@ func runRevenue(args []string, stdout io.Writer, stderr io.Writer) int {
 	reportRange := defaultReportRange(appleads.CampaignReportQuery{AppID: query.AppID, From: query.From, To: query.To})
 	query.From = reportRange.From
 	query.To = reportRange.To
-	status := lilycloud.New(config.Load()).RevenueSummary(query)
+	cfg := config.Load()
+	query = revenueQueryWithAppleAdsContext(cfg, query)
+	status := lilycloud.New(cfg).RevenueSummary(query)
 	exitCode := 0
-	if status.Status == "login_required" || status.Status == "dashboard_required" {
+	if status.Status == "login_required" || status.Status == "dashboard_required" || status.Status == "account_mismatch" {
 		exitCode = 3
 	}
 	if err := output.JSON(stdout, status); err != nil {
@@ -380,6 +382,17 @@ func runRevenue(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 1
 	}
 	return exitCode
+}
+
+func revenueQueryWithAppleAdsContext(cfg config.Config, query lilycloud.RevenueQuery) lilycloud.RevenueQuery {
+	query.AppleAdsProvider = config.NormalizeProvider(cfg.Provider)
+	switch query.AppleAdsProvider {
+	case "campaignv5":
+		query.AppleAdsOrgID = strings.TrimSpace(cfg.OrgID)
+	case "platform":
+		query.AppleAdsAdAccountID = strings.TrimSpace(cfg.AdAccountID)
+	}
+	return query
 }
 
 func runSuggestions(args []string, stdout io.Writer, stderr io.Writer) int {

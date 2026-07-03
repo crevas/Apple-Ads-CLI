@@ -20,9 +20,12 @@ type Client struct {
 }
 
 type RevenueQuery struct {
-	AppID string `json:"appId"`
-	From  string `json:"from"`
-	To    string `json:"to"`
+	AppID               string `json:"appId"`
+	From                string `json:"from"`
+	To                  string `json:"to"`
+	AppleAdsProvider    string `json:"appleAdsProvider,omitempty"`
+	AppleAdsOrgID       string `json:"appleAdsOrgId,omitempty"`
+	AppleAdsAdAccountID string `json:"appleAdsAdAccountId,omitempty"`
 }
 
 type RevenueStatus struct {
@@ -127,6 +130,16 @@ func (c Client) RevenueSummary(query RevenueQuery) RevenueStatus {
 				"revenue_read",
 			},
 			Notice: "Revenue data requires Lily login and Lily Ads Revenue Analytics activation, so paid-user status and ROAS cannot be calculated.",
+			Raw:    parsed,
+		}
+	case http.StatusConflict:
+		return RevenueStatus{
+			Source: ProductName,
+			Status: "account_mismatch",
+			MissingCapabilities: []string{
+				"matching_lily_revenue_account",
+			},
+			Notice: "Apple Ads data was read from local credentials, but this Lily token is not authorized for the same Apple Ads account/app. Revenue and ROAS were skipped.",
 			Raw:    parsed,
 		}
 	default:

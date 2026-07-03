@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/crevas/Apple-Ads-CLI/internal/appleads"
+	"github.com/crevas/Apple-Ads-CLI/internal/config"
+	"github.com/crevas/Apple-Ads-CLI/internal/lilycloud"
 )
 
 func TestParsePlanCreateBusinessOptions(t *testing.T) {
@@ -138,6 +140,38 @@ func TestDoctorSeparatesAppleAdsCredentialsFromLilyLogin(t *testing.T) {
 	}
 	if got := lilyLogin["requiredForAppleAdsOperations"]; got != false {
 		t.Fatalf("lilyLogin.requiredForAppleAdsOperations = %v, want false", got)
+	}
+}
+
+func TestRevenueQueryWithAppleAdsContextUsesProviderScope(t *testing.T) {
+	v5 := revenueQueryWithAppleAdsContext(config.Config{
+		Provider:    "campaignv5",
+		OrgID:       "123456",
+		AdAccountID: "ad-account",
+	}, lilycloud.RevenueQuery{AppID: "999999999"})
+	if v5.AppleAdsProvider != "campaignv5" {
+		t.Fatalf("v5 provider = %q, want campaignv5", v5.AppleAdsProvider)
+	}
+	if v5.AppleAdsOrgID != "123456" {
+		t.Fatalf("v5 org id = %q, want 123456", v5.AppleAdsOrgID)
+	}
+	if v5.AppleAdsAdAccountID != "" {
+		t.Fatalf("v5 ad account id = %q, want empty", v5.AppleAdsAdAccountID)
+	}
+
+	platform := revenueQueryWithAppleAdsContext(config.Config{
+		Provider:    "platform",
+		OrgID:       "123456",
+		AdAccountID: "ad-account",
+	}, lilycloud.RevenueQuery{AppID: "999999999"})
+	if platform.AppleAdsProvider != "platform" {
+		t.Fatalf("platform provider = %q, want platform", platform.AppleAdsProvider)
+	}
+	if platform.AppleAdsAdAccountID != "ad-account" {
+		t.Fatalf("platform ad account id = %q, want ad-account", platform.AppleAdsAdAccountID)
+	}
+	if platform.AppleAdsOrgID != "" {
+		t.Fatalf("platform org id = %q, want empty", platform.AppleAdsOrgID)
 	}
 }
 
