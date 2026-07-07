@@ -19,6 +19,7 @@ Use `lily` as a business-first Apple Ads CLI. Keep Apple Ads operations tied to 
 - If revenue returns `login_required`, `dashboard_required`, or `account_mismatch`, keep the Apple Ads result and skip ROAS.
 - Do not calculate ROAS when the Apple Ads account and Lily revenue account do not match.
 - Default to dry-run JSON plans. Execute writes only after explicit approval.
+- When the user asks to create a campaign with incomplete details, first analyze available app/report context and produce a recommended draft. Do not reply with a checklist of missing budget, bid, CPA, or keyword parameters unless app/account identity is ambiguous or a value is truly unsafe to infer.
 
 ## User-Facing Communication
 
@@ -60,9 +61,11 @@ Explain the result as:
 
 ### Plan Campaign Package
 
-Use `lily ads plan create` for business-level campaign packages. Include CPA goal, negative keywords, and creative/product page choices when provided.
+Use `lily ads plan recommend` for business-level draft recommendations when the user gives intent such as "create a UK campaign" but not every setting. Include inferred CPA goal, negative keywords, and creative/product page choices when you can justify them from context; otherwise show the CLI `assumptions` and ask the user to approve or modify.
 
-Default behavior is JSON dry-run. Review the returned `review`, `planned`, and `confirmation` fields.
+Use `lily ads plan create` only after the user accepts the recommendation or provides a fully specified package. Include CPA goal, negative keywords, and creative/product page choices when provided.
+
+Default behavior is JSON dry-run. Review the returned `assumptions`, `review`, `planned`, and `confirmation` fields.
 
 Before execution:
 

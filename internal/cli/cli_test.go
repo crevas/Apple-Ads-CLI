@@ -65,6 +65,40 @@ func TestParsePlanCreateBusinessOptions(t *testing.T) {
 	}
 }
 
+func TestPlanRecommendAllowsBusinessDraftDefaults(t *testing.T) {
+	t.Setenv("LILY_ADS_CONFIG", t.TempDir()+"/apple-ads.json")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(context.Background(), []string{
+		"ads", "plan", "recommend",
+		"--app-id", "999999999",
+		"--country", "UK",
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run returned code %d, stderr: %s", code, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("plan recommend output is not JSON: %v\n%s", err, stdout.String())
+	}
+	if payload["mode"] != "dry-run" {
+		t.Fatalf("mode = %v, want dry-run", payload["mode"])
+	}
+	assumptions, ok := payload["assumptions"].([]any)
+	if !ok || len(assumptions) == 0 {
+		t.Fatalf("assumptions missing or empty: %#v", payload["assumptions"])
+	}
+	review, ok := payload["review"].(map[string]any)
+	if !ok {
+		t.Fatalf("review missing or invalid: %#v", payload["review"])
+	}
+	if review["status"] != "PAUSED" {
+		t.Fatalf("status = %v, want PAUSED", review["status"])
+	}
+}
+
 func TestAuthStatusExplainsLilyLoginIsOptional(t *testing.T) {
 	t.Setenv("LILY_ADS_CONFIG", t.TempDir()+"/apple-ads.json")
 

@@ -120,6 +120,7 @@ type PlanCreateResult struct {
 	Mode           string            `json:"mode"`
 	CorrelationID  string            `json:"correlationId,omitempty"`
 	Review         PlanReview        `json:"review"`
+	Assumptions    []string          `json:"assumptions,omitempty"`
 	Planned        []PlannedRequest  `json:"planned"`
 	Executed       []ExecutedStep    `json:"executed,omitempty"`
 	NextActions    []string          `json:"nextActions,omitempty"`
@@ -226,9 +227,6 @@ func NormalizePlan(input PlanCreateInput) (PlanCreateInput, error) {
 	input.Creative.Name = strings.TrimSpace(input.Creative.Name)
 	input.Creative.AdName = strings.TrimSpace(input.Creative.AdName)
 
-	if input.Name == "" {
-		return input, fmt.Errorf("--name is required")
-	}
 	if input.AppID == "" {
 		return input, fmt.Errorf("--app-id is required")
 	}
@@ -239,23 +237,32 @@ func NormalizePlan(input PlanCreateInput) (PlanCreateInput, error) {
 		return input, fmt.Errorf("--country or --countries is required")
 	}
 	input.Countries = NormalizeCountries(input.Countries)
+	if input.Name == "" {
+		input.Name = defaultPlanName(input)
+	}
 	if input.Currency == "" {
 		input.Currency = "USD"
 	}
 	if input.DailyBudget == "" {
-		return input, fmt.Errorf("--daily-budget is required")
+		if input.Execute {
+			return input, fmt.Errorf("--daily-budget is required when using --yes or --execute")
+		}
+		input.DailyBudget = "20"
 	}
 	if input.AdGroupName == "" {
 		input.AdGroupName = input.Name + " - Search Results"
 	}
 	if input.DefaultBid == "" {
-		return input, fmt.Errorf("--bid is required")
+		if input.Execute {
+			return input, fmt.Errorf("--bid is required when using --yes or --execute")
+		}
+		input.DefaultBid = "1.50"
 	}
-	if len(input.Keywords) == 0 {
-		return input, fmt.Errorf("--keywords, --exact-keywords, or --broad-keywords is required")
+	if len(input.Keywords) == 0 && input.Execute {
+		return input, fmt.Errorf("--keywords, --exact-keywords, or --broad-keywords is required when using --yes or --execute")
 	}
 	if input.Status == "" {
-		input.Status = "ENABLED"
+		input.Status = "PAUSED"
 	}
 	if input.Supply == "" {
 		input.Supply = "APPSTORE_SEARCH_RESULTS"
@@ -301,6 +308,34 @@ func NormalizePlan(input PlanCreateInput) (PlanCreateInput, error) {
 	}
 
 	return input, nil
+}
+
+func PlanAssumptions(input PlanCreateInput, normalized PlanCreateInput) []string {
+	var assumptions []string
+	if strings.TrimSpace(input.Name) == "" {
+		assumptions = append(assumptions, "Campaign name was inferred from app ID and country.")
+	}
+	if strings.TrimSpace(input.Currency) == "" {
+		assumptions = append(assumptions, "Currency was not supplied; Lily used USD as a draft default.")
+	}
+	if strings.TrimSpace(input.DailyBudget) == "" {
+		assumptions = append(assumptions, fmt.Sprintf("Daily budget was not supplied; Lily used %s %s/day as a draft default.", normalized.Currency, normalized.DailyBudget))
+	}
+	if strings.TrimSpace(input.DefaultBid) == "" {
+		assumptions = append(assumptions, fmt.Sprintf("Default bid was not supplied; Lily used %s %s as a draft default.", normalized.Currency, normalized.DefaultBid))
+	}
+	if len(input.Keywords) == 0 {
+		assumptions = append(assumptions, "No keywords were supplied; add exact/broad keywords before confirming a write.")
+	}
+	return assumptions
+}
+
+func defaultPlanName(input PlanCreateInput) string {
+	country := "SEARCH"
+	if len(input.Countries) > 0 {
+		country = input.Countries[0]
+	}
+	return fmt.Sprintf("%s-%s-Search-1", input.AppID, country)
 }
 
 func NormalizeCountries(values []string) []string {

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.1.6
+
+- Adds `lily ads plan recommend` for business-first campaign drafts when an
+  agent or operator has the intent but not every bid, budget, or keyword ready.
+- Adds `assumptions` to campaign plan dry-runs so AI agents can explain inferred
+  names, budgets, bids, and missing keywords before asking the user to approve
+  or modify.
+- Keeps review-only drafts flexible while requiring explicit budget, bid, and
+  keywords before `--yes` or `--execute` can perform writes.
+- Changes the default campaign/ad group status to `PAUSED` for safer campaign
+  package planning.
 - Adds a Claude Code skill alongside the Codex skill for Apple Ads CLI by Lily.
 - Documents installation paths for both Codex and Claude Code agent skills.
 

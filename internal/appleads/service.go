@@ -19,6 +19,7 @@ func (s PlanService) Create(input PlanCreateInput) (PlanCreateResult, error) {
 		Mode:          "dry-run",
 		CorrelationID: normalized.CorrelationID,
 		Review:        buildPlanReview(normalized),
+		Assumptions:   PlanAssumptions(input, normalized),
 		Planned:       s.Provider.PlannedRequests(normalized),
 		NextActions: []string{
 			"Present the campaign plan to the user in business terms.",

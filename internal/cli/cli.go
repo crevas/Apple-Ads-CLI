@@ -17,7 +17,7 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/providers/platform"
 )
 
-const version = "0.1.5"
+const version = "0.1.6"
 
 type globalOptions struct {
 	Provider string
@@ -482,7 +482,8 @@ func runPlan(ctx context.Context, args []string, globals globalOptions, stdout i
 		printPlanHelp(stdout)
 		return 0
 	}
-	if args[0] != "create" {
+	command := args[0]
+	if command != "create" && command != "recommend" {
 		fmt.Fprintf(stderr, "unknown ads plan command %q\n", args[0])
 		return 2
 	}
@@ -491,6 +492,9 @@ func runPlan(ctx context.Context, args []string, globals globalOptions, stdout i
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
+	}
+	if command == "recommend" {
+		input.Execute = false
 	}
 
 	cfg := config.Load()
@@ -566,7 +570,7 @@ func parsePlanCreate(args []string) (appleads.PlanCreateInput, error) {
 	flags.StringVar(&adName, "ad-name", "", "optional ad name")
 	flags.StringVar(&input.StartTime, "start-time", "", "optional start time")
 	flags.StringVar(&input.EndTime, "end-time", "", "optional end time")
-	flags.StringVar(&input.Status, "status", "ENABLED", "initial status")
+	flags.StringVar(&input.Status, "status", "PAUSED", "initial status")
 	flags.StringVar(&input.Supply, "supply", "APPSTORE_SEARCH_RESULTS", "supply placement")
 	flags.BoolVar(&input.AllowPartial, "allow-partial", true, "allow partial keyword bulk success when provider supports it")
 	flags.BoolVar(&execute, "execute", false, "execute write operations")
@@ -718,6 +722,7 @@ func printHelp(w io.Writer) {
 		"  lily auth status",
 		"  lily ads doctor",
 		"  lily ads platform readiness",
+		"  lily ads plan recommend [flags]",
 		"  lily ads plan create [flags]",
 		"  lily ads reports campaigns [flags]",
 		"  lily ads revenue summary [flags]",
@@ -740,6 +745,7 @@ func printAdsHelp(w io.Writer) {
 		"Usage:",
 		"  lily ads doctor",
 		"  lily ads platform readiness",
+		"  lily ads plan recommend [flags]",
 		"  lily ads plan create [flags]",
 		"  lily ads reports campaigns [flags]",
 		"  lily ads revenue summary [flags]",
@@ -754,13 +760,17 @@ func printAdsHelp(w io.Writer) {
 func printPlanHelp(w io.Writer) {
 	output.Text(w,
 		"Usage:",
+		"  lily ads plan recommend --app-id <adamId> --country GB",
 		"  lily ads plan create --name <name> --app-id <adamId> --country GB --daily-budget 300 --bid 2.00 --keywords \"photo editor,best photo editor\"",
 		"",
-		"Business-first composite write:",
-		"  creates one campaign, one ad group, bulk keywords, optional negatives, and optional creative/ad attachment in a single plan.",
+		"Business-first workflow:",
+		"  recommend creates a review-only draft with safe assumptions.",
+		"  create prepares the same campaign package and remains dry-run unless --yes or --execute is set.",
+		"  the package includes one campaign, one ad group, bulk keywords, optional negatives, and optional creative/ad attachment.",
 		"",
 		"Safety:",
 		"  dry-run is the default. Add --yes or --execute to call Apple Ads.",
+		"  missing budget, bid, or keywords are allowed only for review-only drafts; writes require explicit values.",
 		"",
 		"Flags:",
 		"  --name <name>",

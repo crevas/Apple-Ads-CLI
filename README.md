@@ -63,7 +63,20 @@ Run a local readiness check:
 lily ads platform readiness
 ```
 
-Preview a business plan without writing to Apple Ads:
+Ask Lily to recommend a review-only campaign draft when an agent or operator
+has the business intent but not every bid, budget, or keyword ready yet:
+
+```sh
+lily ads plan recommend \
+  --app-id 999999999 \
+  --country UK
+```
+
+The recommendation response includes `assumptions`, `review`, `planned`, and
+`confirmation` fields so AI agents can explain the suggested budget, bid, CPA
+goal, keywords, and risks before asking the user to approve or modify.
+
+Preview a fully specified business plan without writing to Apple Ads:
 
 ```sh
 lily ads plan create \
@@ -85,6 +98,7 @@ lily ads plan create \
 Dry-run is the default. Add `--yes` or `--execute` to perform writes.
 Dry-run responses include `review` and `confirmation` objects so AI agents can
 show a business summary and ask the user to confirm, modify, or cancel.
+Writes require explicit budget, bid, and keywords.
 
 Preview the same business command against the next-generation Platform
 provider:
@@ -249,6 +263,7 @@ lily logout
 lily auth status
 lily ads doctor
 lily ads platform readiness
+lily ads plan recommend [flags]
 lily ads plan create [flags]
 lily ads reports campaigns [flags]
 lily ads revenue summary [flags]

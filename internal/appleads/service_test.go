@@ -62,6 +62,40 @@ func TestPlanCreateDryRunIncludesReviewAndUserConfirmation(t *testing.T) {
 	}
 }
 
+func TestPlanCreateDryRunAllowsDraftDefaultsButExecuteRequiresExplicitValues(t *testing.T) {
+	result, err := PlanService{Provider: fakePlanProvider{}}.Create(PlanCreateInput{
+		AppID:     "999999999",
+		Countries: []string{"UK"},
+	})
+	if err != nil {
+		t.Fatalf("Create dry-run returned error: %v", err)
+	}
+	if result.Review.CampaignName != "999999999-GB-Search-1" {
+		t.Fatalf("campaignName = %q, want inferred name", result.Review.CampaignName)
+	}
+	if result.Review.DailyBudget.Amount != "20" {
+		t.Fatalf("dailyBudget = %#v, want default 20", result.Review.DailyBudget)
+	}
+	if result.Review.DefaultBid.Amount != "1.50" {
+		t.Fatalf("defaultBid = %#v, want default 1.50", result.Review.DefaultBid)
+	}
+	if result.Review.Status != "PAUSED" {
+		t.Fatalf("status = %q, want PAUSED", result.Review.Status)
+	}
+	if len(result.Assumptions) == 0 {
+		t.Fatal("assumptions should explain draft defaults")
+	}
+
+	_, err = PlanService{Provider: fakePlanProvider{}}.Create(PlanCreateInput{
+		AppID:     "999999999",
+		Countries: []string{"UK"},
+		Execute:   true,
+	})
+	if err == nil {
+		t.Fatal("Create execute returned nil error, want explicit value error")
+	}
+}
+
 type fakePlanProvider struct{}
 
 func (fakePlanProvider) Name() string { return "fake" }
