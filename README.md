@@ -13,6 +13,27 @@ Management API v5.
 Apple Ads is an Apple brand. Apple Ads CLI by Lily is an independent,
 unofficial tool and is not affiliated with, endorsed by, or sponsored by Apple.
 
+## What Platform API 1.0 Unlocks
+
+Platform API 1.0 is more than a new base URL. It introduces an ad-account
+context, promoted-object campaigns, first-class bulk operations, and query-style
+reporting. Lily 0.2.0 maps those contracts back to the same business-first CLI
+workflow while keeping classic v5 available during migration.
+
+| Platform API 1.0 change | What it enables in Lily 0.2.0 |
+| --- | --- |
+| Ad-account-scoped requests | Target the intended Apple Ads account with `adAccountId` instead of the classic v5 `orgId` context. |
+| Promoted-object campaigns | Plan an `APPSTORE_APP` campaign, ad group, bid strategy, CPA goal, and product-page destination as one reviewable package. |
+| Bulk operation endpoints | Create keywords and negative keywords in batches, with partial-success behavior for large plans. |
+| Query-style app reporting | Run authenticated campaign reports through `/reports/apps/campaigns/query`, filtered by app and date range. |
+| Side-by-side providers | Add `--provider platform` to use API 1.0 without giving up the established `campaignv5` workflow. |
+
+Authenticated Platform API 1.0 campaign reporting is verified. Target CPA
+suggestion and recommendation commands remain reserved until their endpoint
+contracts are available; Lily does not present them as live features.
+
+Read the full guide: [What’s new in Apple Ads Platform API 1.0?](https://www.chatlily.ai/guides/apple-ads-platform-api-1-0-new-features)
+
 ## Why This Exists
 
 Most Apple Ads automation tools expose raw endpoint-shaped commands. Lily takes
