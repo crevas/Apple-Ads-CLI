@@ -13,26 +13,33 @@ Management API v5.
 Apple Ads is an Apple brand. Apple Ads CLI by Lily is an independent,
 unofficial tool and is not affiliated with, endorsed by, or sponsored by Apple.
 
-## What Platform API 1.0 Unlocks
+## What Platform API 1.0 Unlocks for Advertisers
 
-Platform API 1.0 is more than a new base URL. It introduces an ad-account
-context, promoted-object campaigns, first-class bulk operations, and query-style
-reporting. Lily 0.2.0 maps those contracts back to the same business-first CLI
-workflow while keeping classic v5 available during migration.
+The important change is not `adAccountId` or a new response envelope. Classic
+v5 already covers campaign management, reporting, and per-keyword suggested
+bids. Platform API 1.0 exposes a broader set of Apple's opportunity signals as
+dedicated query workflows. An operator can discover demand, estimate upside,
+and decide where bids or budget have room to grow before spending more.
 
-| Platform API 1.0 change | What it enables in Lily 0.2.0 |
-| --- | --- |
-| Ad-account-scoped requests | Target the intended Apple Ads account with `adAccountId` instead of the classic v5 `orgId` context. |
-| Promoted-object campaigns | Plan an `APPSTORE_APP` campaign, ad group, bid strategy, CPA goal, and product-page destination as one reviewable package. |
-| Bulk operation endpoints | Create keywords and negative keywords in batches, with partial-success behavior for large plans. |
-| Query-style app reporting | Run authenticated campaign reports through `/reports/apps/campaigns/query`, filtered by app and date range. |
-| Side-by-side providers | Add `--provider platform` to use API 1.0 without giving up the established `campaignv5` workflow. |
+| Platform API 1.0 intelligence | Better campaign decision | Potential performance impact |
+| --- | --- | --- |
+| Keyword, phrase, and category suggestions | Expand from an app or seed terms into related App Store demand. | Find relevant reach without building every keyword list manually. |
+| Personalized keyword recommendations | Compare popularity and expected impressions, taps, installs, spend, and CPA before adding a keyword. | Prioritize opportunities with enough volume and acceptable acquisition economics. |
+| Search-term popularity insights | Query weekly or monthly search-term rank and popularity by country and App Store genre. | Spot rising demand and localization opportunities earlier. |
+| Target CPA and daily budget recommendations | Identify campaigns where a different acquisition target or budget may unlock incremental installs. | Reduce avoidable underfunding and make scaling decisions with estimated outcomes. |
+| Expanded impression-share insights | Compare first-slot and all-slot visibility by search term and market. | Separate genuine auction headroom from keywords with limited demand. |
 
-Authenticated Platform API 1.0 campaign reporting is verified. Target CPA
-suggestion and recommendation commands remain reserved until their endpoint
-contracts are available; Lily does not present them as live features.
+The strongest workflow combines these Apple opportunity signals with actual
+post-install revenue. Apple can estimate installs, spend, and CPA; RevenueCat or
+AppsFlyer can show whether the acquired users produce enough revenue and ROAS to
+justify scaling.
 
-Read the full guide: [What’s new in Apple Ads Platform API 1.0?](https://www.chatlily.ai/guides/apple-ads-platform-api-1-0-new-features)
+Lily CLI 0.2.0 currently supports Platform API campaign workflows and verified
+live campaign reporting alongside classic v5. The table above describes the
+broader Platform API 1.0 opportunity surface; a capability is not a live CLI
+command until it appears in the Commands section below.
+
+Read the full guide: [What Platform API 1.0 unlocks for campaign performance](https://www.chatlily.ai/guides/apple-ads-platform-api-1-0-new-features)
 
 ## Why This Exists
 
@@ -294,8 +301,9 @@ lily ads suggestions cpa --app-id 999999999
 lily ads recommendations apply --type target-cpa --app-id 999999999
 ```
 
-They currently return `status: reserved` and are designed to be enabled as soon
-as Apple exposes target CPA recommendation/suggestion endpoint contracts.
+They currently return `status: reserved` because Lily CLI 0.2.0 has not yet
+wired the new Platform recommendation and suggestion query surfaces. Reserved
+describes CLI coverage, not Platform API availability.
 
 ## Commands
 
