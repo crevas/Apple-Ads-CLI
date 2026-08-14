@@ -1,8 +1,14 @@
 # Apple Ads CLI by Lily
 
+> **Apple Ads Platform API 1.0 is supported in Lily 0.2.0.** Use the
+> `platform` provider for Platform API campaign workflows and live campaign
+> reporting. Authenticated reporting has been verified against Apple's v1
+> endpoint.
+
 Apple Ads CLI by Lily is an open-source, AI-friendly, business-first command
 line tool for planning Apple Ads campaign packages, reviewing AI-agent generated
-changes, and supporting Campaign Management API v5 and Platform API v1.
+changes, and supporting Apple Ads Platform API 1.0 (`v1`) alongside Campaign
+Management API v5.
 
 Apple Ads is an Apple brand. Apple Ads CLI by Lily is an independent,
 unofficial tool and is not affiliated with, endorsed by, or sponsored by Apple.
@@ -17,7 +23,8 @@ a business-first approach:
   attachment in one command
 - return JSON by default so Codex, Claude Code, CI, and humans can review plans
   through business summaries and confirmation choices
-- keep the current v5 API working while supporting live Apple Ads Platform API v1
+- use Apple Ads Platform API 1.0 for campaign workflows and live reporting
+- keep Campaign Management API v5 available during account migrations
 - optionally add keyword-level revenue analytics through Lily with RevenueCat
   or AppsFlyer
 
@@ -57,10 +64,20 @@ curl -fsSL https://raw.githubusercontent.com/crevas/Apple-Ads-CLI/main/install.s
 
 ## Quick Start
 
-Run a local readiness check:
+Confirm that the installed CLI includes Platform API 1.0 support:
 
 ```sh
 lily ads platform readiness
+```
+
+Run a live Platform API 1.0 campaign report after configuring local Apple Ads
+credentials and an `APPLE_ADS_AD_ACCOUNT_ID`:
+
+```sh
+lily --provider platform ads reports campaigns \
+  --app-id 999999999 \
+  --from 2026-08-01 \
+  --to 2026-08-14
 ```
 
 Ask Lily to recommend a review-only campaign draft when an agent or operator
@@ -100,7 +117,7 @@ Dry-run responses include `review` and `confirmation` objects so AI agents can
 show a business summary and ask the user to confirm, modify, or cancel.
 Writes require explicit budget, bid, and keywords.
 
-Use the same business command with the Platform API v1 provider:
+Use the same business command with the Platform API 1.0 provider:
 
 ```sh
 lily --provider platform ads plan create \
@@ -126,7 +143,7 @@ export APPLE_ADS_ORG_ID=...
 export APPLE_ADS_PRIVATE_KEY_PATH=/path/to/AuthKey.p8
 ```
 
-For the Platform API provider:
+For the Platform API 1.0 provider:
 
 ```sh
 export APPLE_ADS_PROVIDER=platform
@@ -226,7 +243,7 @@ Apple Ads result where possible and appends a structured revenue notice. This
 helps agents explain that paid-user status and ROAS cannot be calculated until
 Lily Ads Revenue Analytics is activated.
 
-## Platform API Readiness
+## Apple Ads Platform API 1.0 Support
 
 The CLI hides API shape changes behind providers:
 
@@ -235,8 +252,9 @@ campaignv5 -> https://api.searchads.apple.com/api/v5
 platform   -> https://api.ads.apple.com/v1
 ```
 
-Live Platform API v1 campaign reporting is verified. `campaignv5` remains the
-default provider during migration; select v1 explicitly with
+Lily 0.2.0 supports Apple Ads Platform API 1.0. Authenticated live campaign
+reporting is verified against the v1 endpoint. `campaignv5` remains the default
+provider during migration; select Platform API 1.0 explicitly with
 `--provider platform` or `APPLE_ADS_PROVIDER=platform`.
 
 Known compatibility differences handled by the providers:
