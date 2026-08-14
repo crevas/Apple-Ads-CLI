@@ -193,6 +193,53 @@ type CampaignReportQuery struct {
 	Offset      int
 }
 
+type RecommendationQuery struct {
+	AppID  string `json:"appId"`
+	Type   string `json:"type"`
+	State  string `json:"state,omitempty"`
+	Limit  int    `json:"limit"`
+	Offset int    `json:"offset"`
+}
+
+type SuggestionQuery struct {
+	AppID     string   `json:"appId"`
+	Type      string   `json:"type"`
+	Terms     []string `json:"terms,omitempty"`
+	Countries []string `json:"countriesOrRegions,omitempty"`
+	Limit     int      `json:"limit,omitempty"`
+	Offset    int      `json:"offset,omitempty"`
+}
+
+type SearchTermPopularityQuery struct {
+	Country     string `json:"countryOrRegion"`
+	Genre       string `json:"genre"`
+	From        string `json:"from"`
+	To          string `json:"to"`
+	Granularity string `json:"granularity"`
+	Limit       int    `json:"limit"`
+	Offset      int    `json:"offset"`
+}
+
+type ImpressionShareQuery struct {
+	AppID       string   `json:"appId"`
+	From        string   `json:"from"`
+	To          string   `json:"to"`
+	Granularity string   `json:"granularity"`
+	Countries   []string `json:"countriesOrRegions,omitempty"`
+	SearchTerms []string `json:"searchTerms,omitempty"`
+	Limit       int      `json:"limit"`
+	Offset      int      `json:"offset"`
+}
+
+type ChangeHistoryQuery struct {
+	From        string   `json:"from"`
+	To          string   `json:"to"`
+	EntityTypes []string `json:"entityTypes,omitempty"`
+	EventTypes  []string `json:"eventTypes,omitempty"`
+	Limit       int      `json:"limit"`
+	Offset      int      `json:"offset"`
+}
+
 type Provider interface {
 	Name() string
 	PlannedRequests(input PlanCreateInput) []PlannedRequest
@@ -203,6 +250,16 @@ type Provider interface {
 	CreateCreative(ctx RequestContext, input CreativeCreate) (RawResponse, string, error)
 	CreateAd(ctx RequestContext, input AdCreate) (RawResponse, string, error)
 	QueryCampaignReport(ctx RequestContext, input CampaignReportQuery) (RawResponse, error)
+}
+
+type OpportunityProvider interface {
+	Provider
+	QueryRecommendations(ctx RequestContext, input RecommendationQuery) (RawResponse, error)
+	QuerySuggestions(ctx RequestContext, input SuggestionQuery) (RawResponse, error)
+	QuerySearchTermPopularity(ctx RequestContext, input SearchTermPopularityQuery) (RawResponse, error)
+	QueryImpressionShare(ctx RequestContext, input ImpressionShareQuery) (RawResponse, error)
+	QueryChangeHistory(ctx RequestContext, input ChangeHistoryQuery) (RawResponse, error)
+	GetChangeHistoryDetail(ctx RequestContext, detailID string) (RawResponse, error)
 }
 
 type RequestContext interface {

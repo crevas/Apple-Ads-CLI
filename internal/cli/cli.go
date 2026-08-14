@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/providers/platform"
 )
 
-const version = "0.2.0"
+const version = "0.2.1"
 
 type globalOptions struct {
 	Provider string
@@ -164,9 +165,13 @@ func runAds(ctx context.Context, args []string, globals globalOptions, stdout io
 	case "revenue":
 		return runRevenue(args[1:], stdout, stderr)
 	case "suggestions":
-		return runSuggestions(args[1:], stdout, stderr)
+		return runSuggestions(ctx, args[1:], globals, stdout, stderr)
 	case "recommendations":
-		return runRecommendations(args[1:], stdout, stderr)
+		return runRecommendations(ctx, args[1:], globals, stdout, stderr)
+	case "insights":
+		return runInsights(ctx, args[1:], globals, stdout, stderr)
+	case "change-history":
+		return runChangeHistory(ctx, args[1:], globals, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown ads command %q\n\n", args[0])
 		printAdsHelp(stderr)
@@ -260,7 +265,18 @@ func runPlatform(args []string, stdout io.Writer, stderr io.Writer) int {
 			},
 			"notes": []string{
 				"Platform provider is available behind --provider platform.",
-				"Live Platform API v1 campaign reporting is verified; campaignv5 remains the default during migration.",
+				"Live Platform API v1 campaign reporting and read-only opportunity queries are supported; campaignv5 remains the default during migration.",
+			},
+			"readOnlyOpportunityCommands": []string{
+				"suggestions keywords",
+				"suggestions target-cpa",
+				"recommendations keywords",
+				"recommendations target-cpa",
+				"recommendations daily-budget",
+				"insights search-term-popularity",
+				"insights impression-share",
+				"change-history query",
+				"change-history detail",
 			},
 		}, stderr)
 	default:
@@ -395,86 +411,511 @@ func revenueQueryWithAppleAdsContext(cfg config.Config, query lilycloud.RevenueQ
 	return query
 }
 
-func runSuggestions(args []string, stdout io.Writer, stderr io.Writer) int {
+func runSuggestions(ctx context.Context, args []string, globals globalOptions, stdout io.Writer, stderr io.Writer) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
-		output.Text(stdout, "Usage:", "  lily ads suggestions cpa --app-id <adamId>")
+		output.Text(stdout,
+			"Usage:",
+			"  lily --provider platform ads suggestions keywords --app-id <adamId> [--terms term1,term2] [--countries US,GB]",
+			"  lily --provider platform ads suggestions target-cpa --app-id <adamId>",
+		)
 		return 0
 	}
-	if args[0] == "cpa" {
-		flags := flag.NewFlagSet("lily ads suggestions cpa", flag.ContinueOnError)
-		flags.SetOutput(io.Discard)
-		var appID string
-		var country string
-		flags.StringVar(&appID, "app-id", "", "App Store adamId")
-		flags.StringVar(&country, "country", "", "optional country or region code")
-		if err := flags.Parse(args[1:]); err != nil {
-			fmt.Fprintln(stderr, err)
-			return 2
-		}
-		if strings.TrimSpace(appID) == "" {
-			fmt.Fprintln(stderr, "--app-id is required")
-			return 2
-		}
-		return printReserved(stdout, stderr, "suggestions.cpa", map[string]any{
-			"appId":   appID,
-			"country": strings.ToUpper(strings.TrimSpace(country)),
-		})
+
+	suggestionType, ok := normalizeSuggestionType(args[0])
+	if !ok {
+		fmt.Fprintf(stderr, "unknown ads suggestions command %q\n", args[0])
+		return 2
 	}
-	fmt.Fprintf(stderr, "unknown ads suggestions command %q\n", args[0])
-	return 2
+	flags := flag.NewFlagSet("lily ads suggestions "+args[0], flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var input appleads.SuggestionQuery
+	var terms string
+	var countries string
+	flags.StringVar(&input.AppID, "app-id", "", "App Store adamId")
+	flags.StringVar(&terms, "terms", "", "comma-separated seed terms")
+	flags.StringVar(&countries, "countries", "", "comma-separated country or region codes")
+	flags.StringVar(&countries, "country", "", "country or region code")
+	flags.IntVar(&input.Limit, "limit", 50, "max rows")
+	flags.IntVar(&input.Offset, "offset", 0, "pagination offset")
+	if err := flags.Parse(args[1:]); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	appID, err := normalizeAppID(input.AppID)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if err := validatePagination(input.Limit, input.Offset); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	input.AppID = appID
+	input.Type = suggestionType
+	input.Terms = splitList(terms, false)
+	input.Countries = normalizeCountries(countries)
+
+	return executeOpportunityQuery(ctx, globals, stdout, stderr, "suggestions."+strings.ToLower(suggestionType), input,
+		func(provider appleads.OpportunityProvider, client appleads.RequestContext) (appleads.RawResponse, error) {
+			return provider.QuerySuggestions(client, input)
+		})
 }
 
-func runRecommendations(args []string, stdout io.Writer, stderr io.Writer) int {
+func runRecommendations(ctx context.Context, args []string, globals globalOptions, stdout io.Writer, stderr io.Writer) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
-		output.Text(stdout, "Usage:", "  lily ads recommendations apply --type target-cpa")
+		output.Text(stdout,
+			"Usage:",
+			"  lily --provider platform ads recommendations keywords --app-id <adamId> [--state AVAILABLE]",
+			"  lily --provider platform ads recommendations target-cpa --app-id <adamId> [--state AVAILABLE]",
+			"  lily --provider platform ads recommendations daily-budget --app-id <adamId> [--state AVAILABLE]",
+			"  lily --provider platform ads recommendations query --type keyword|target-cpa|daily-budget --app-id <adamId>",
+		)
 		return 0
 	}
 	if args[0] == "apply" {
-		flags := flag.NewFlagSet("lily ads recommendations apply", flag.ContinueOnError)
+		return printReserved(stdout, stderr, "recommendations.apply", map[string]any{
+			"arguments": args[1:],
+		})
+	}
+
+	command := args[0]
+	flags := flag.NewFlagSet("lily ads recommendations "+command, flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var input appleads.RecommendationQuery
+	var typeFlag string
+	flags.StringVar(&input.AppID, "app-id", "", "App Store adamId")
+	flags.StringVar(&typeFlag, "type", "", "keyword, target-cpa, or daily-budget")
+	flags.StringVar(&input.State, "state", "AVAILABLE", "AVAILABLE, APPLIED, DISMISSED, or ALL")
+	flags.IntVar(&input.Limit, "limit", 50, "max rows")
+	flags.IntVar(&input.Offset, "offset", 0, "pagination offset")
+	if err := flags.Parse(args[1:]); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if command == "query" {
+		command = typeFlag
+	}
+	recommendationType, ok := normalizeRecommendationType(command)
+	if !ok {
+		fmt.Fprintf(stderr, "unsupported recommendation type %q; use keyword, target-cpa, or daily-budget\n", command)
+		return 2
+	}
+	appID, err := normalizeAppID(input.AppID)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if err := validatePagination(input.Limit, input.Offset); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	input.AppID = appID
+	input.Type = recommendationType
+	input.State = strings.ToUpper(strings.TrimSpace(input.State))
+	if input.State == "ALL" {
+		input.State = ""
+	}
+	if input.State != "" && input.State != "AVAILABLE" && input.State != "APPLIED" && input.State != "DISMISSED" {
+		fmt.Fprintln(stderr, "--state must be AVAILABLE, APPLIED, DISMISSED, or ALL")
+		return 2
+	}
+
+	return executeOpportunityQuery(ctx, globals, stdout, stderr, "recommendations."+strings.ToLower(recommendationType), input,
+		func(provider appleads.OpportunityProvider, client appleads.RequestContext) (appleads.RawResponse, error) {
+			return provider.QueryRecommendations(client, input)
+		})
+}
+
+func runInsights(ctx context.Context, args []string, globals globalOptions, stdout io.Writer, stderr io.Writer) int {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		output.Text(stdout,
+			"Usage:",
+			"  lily --provider platform ads insights search-term-popularity --country US --genre 'Photo & Video' [--granularity weekly|monthly]",
+			"  lily --provider platform ads insights impression-share --app-id <adamId> [--countries US,GB] [--search-terms term1,term2]",
+		)
+		return 0
+	}
+	switch args[0] {
+	case "search-term-popularity", "popularity":
+		return runSearchTermPopularity(ctx, args[1:], globals, stdout, stderr)
+	case "impression-share":
+		return runImpressionShare(ctx, args[1:], globals, stdout, stderr)
+	default:
+		fmt.Fprintf(stderr, "unknown ads insights command %q\n", args[0])
+		return 2
+	}
+}
+
+func runSearchTermPopularity(ctx context.Context, args []string, globals globalOptions, stdout io.Writer, stderr io.Writer) int {
+	flags := flag.NewFlagSet("lily ads insights search-term-popularity", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var input appleads.SearchTermPopularityQuery
+	flags.StringVar(&input.Country, "country", "", "country or region code")
+	flags.StringVar(&input.Genre, "genre", "", "App Store genre, e.g. Photo & Video")
+	flags.StringVar(&input.From, "from", "", "start date YYYY-MM-DD")
+	flags.StringVar(&input.To, "to", "", "end date YYYY-MM-DD")
+	flags.StringVar(&input.Granularity, "granularity", "WEEKLY_SUN_SAT", "weekly or monthly")
+	flags.IntVar(&input.Limit, "limit", 100, "max rows")
+	flags.IntVar(&input.Offset, "offset", 0, "pagination offset")
+	if err := flags.Parse(args); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	input.Country = strings.ToUpper(strings.TrimSpace(input.Country))
+	if input.Country == "UK" {
+		input.Country = "GB"
+	}
+	input.Genre = strings.TrimSpace(input.Genre)
+	input.Granularity = normalizePopularityGranularity(input.Granularity)
+	if input.Country == "" {
+		fmt.Fprintln(stderr, "--country is required")
+		return 2
+	}
+	if input.Genre == "" {
+		fmt.Fprintln(stderr, "--genre is required")
+		return 2
+	}
+	if input.Granularity == "" {
+		fmt.Fprintln(stderr, "--granularity must be weekly or monthly")
+		return 2
+	}
+	input.From, input.To = defaultPopularityRange(input.From, input.To, input.Granularity, time.Now().UTC())
+	if err := validateDateRange(input.From, input.To); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if err := validatePagination(input.Limit, input.Offset); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+
+	return executeOpportunityQuery(ctx, globals, stdout, stderr, "insights.search-term-popularity", input,
+		func(provider appleads.OpportunityProvider, client appleads.RequestContext) (appleads.RawResponse, error) {
+			return provider.QuerySearchTermPopularity(client, input)
+		})
+}
+
+func runImpressionShare(ctx context.Context, args []string, globals globalOptions, stdout io.Writer, stderr io.Writer) int {
+	flags := flag.NewFlagSet("lily ads insights impression-share", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var input appleads.ImpressionShareQuery
+	var countries string
+	var searchTerms string
+	flags.StringVar(&input.AppID, "app-id", "", "App Store adamId")
+	flags.StringVar(&input.From, "from", "", "start date YYYY-MM-DD")
+	flags.StringVar(&input.To, "to", "", "end date YYYY-MM-DD")
+	flags.StringVar(&input.Granularity, "granularity", "DAILY", "daily, weekly, or monthly")
+	flags.StringVar(&countries, "countries", "", "comma-separated country or region codes")
+	flags.StringVar(&countries, "country", "", "country or region code")
+	flags.StringVar(&searchTerms, "search-terms", "", "comma-separated search terms")
+	flags.IntVar(&input.Limit, "limit", 100, "max rows")
+	flags.IntVar(&input.Offset, "offset", 0, "pagination offset")
+	if err := flags.Parse(args); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	appID, err := normalizeAppID(input.AppID)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	input.AppID = appID
+	input.Granularity = normalizeReportGranularity(input.Granularity)
+	if input.Granularity == "" {
+		fmt.Fprintln(stderr, "--granularity must be daily, weekly, or monthly")
+		return 2
+	}
+	input.From, input.To = defaultCompletedDateRange(input.From, input.To, 7, time.Now().UTC())
+	if err := validateDateRange(input.From, input.To); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if err := validatePagination(input.Limit, input.Offset); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	input.Countries = normalizeCountries(countries)
+	input.SearchTerms = splitList(searchTerms, false)
+
+	return executeOpportunityQuery(ctx, globals, stdout, stderr, "insights.impression-share", input,
+		func(provider appleads.OpportunityProvider, client appleads.RequestContext) (appleads.RawResponse, error) {
+			return provider.QueryImpressionShare(client, input)
+		})
+}
+
+func runChangeHistory(ctx context.Context, args []string, globals globalOptions, stdout io.Writer, stderr io.Writer) int {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		output.Text(stdout,
+			"Usage:",
+			"  lily --provider platform ads change-history query [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--entity-types Campaign,Keyword] [--event-types UPDATE]",
+			"  lily --provider platform ads change-history detail --id <detailId>",
+		)
+		return 0
+	}
+	if args[0] == "detail" {
+		flags := flag.NewFlagSet("lily ads change-history detail", flag.ContinueOnError)
 		flags.SetOutput(io.Discard)
-		var appID string
-		var recommendationType string
-		var yes bool
-		flags.StringVar(&recommendationType, "type", "", "recommendation type, currently reserved: target-cpa")
-		flags.StringVar(&appID, "app-id", "", "optional App Store adamId")
-		flags.BoolVar(&yes, "yes", false, "reserved confirmation flag for future write operations")
+		var detailID string
+		flags.StringVar(&detailID, "id", "", "change-history detail id")
 		if err := flags.Parse(args[1:]); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 2
 		}
-		recommendationType = strings.ToLower(strings.TrimSpace(recommendationType))
-		if recommendationType == "" {
-			fmt.Fprintln(stderr, "--type is required")
+		detailID = strings.TrimSpace(detailID)
+		if detailID == "" {
+			fmt.Fprintln(stderr, "--id is required")
 			return 2
 		}
-		if recommendationType != "target-cpa" {
-			fmt.Fprintf(stderr, "unsupported reserved recommendation type %q\n", recommendationType)
-			return 2
-		}
-		return printReserved(stdout, stderr, "recommendations.apply", map[string]any{
-			"type":  recommendationType,
-			"appId": appID,
-			"yes":   yes,
-		})
+		return executeOpportunityQuery(ctx, globals, stdout, stderr, "change-history.detail", map[string]any{"detailId": detailID},
+			func(provider appleads.OpportunityProvider, client appleads.RequestContext) (appleads.RawResponse, error) {
+				return provider.GetChangeHistoryDetail(client, detailID)
+			})
 	}
-	fmt.Fprintf(stderr, "unknown ads recommendations command %q\n", args[0])
-	return 2
+	if args[0] != "query" {
+		fmt.Fprintf(stderr, "unknown ads change-history command %q\n", args[0])
+		return 2
+	}
+	flags := flag.NewFlagSet("lily ads change-history query", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var input appleads.ChangeHistoryQuery
+	var entityTypes string
+	var eventTypes string
+	flags.StringVar(&input.From, "from", "", "start date YYYY-MM-DD")
+	flags.StringVar(&input.To, "to", "", "end date YYYY-MM-DD")
+	flags.StringVar(&entityTypes, "entity-types", "", "comma-separated entity types")
+	flags.StringVar(&eventTypes, "event-types", "", "comma-separated CREATE, UPDATE, or DELETE")
+	flags.IntVar(&input.Limit, "limit", 50, "max rows")
+	flags.IntVar(&input.Offset, "offset", 0, "pagination offset")
+	if err := flags.Parse(args[1:]); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	input.From, input.To = defaultCompletedDateRange(input.From, input.To, 7, time.Now().UTC())
+	if err := validateDateRange(input.From, input.To); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if err := validatePagination(input.Limit, input.Offset); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	input.EntityTypes = splitList(entityTypes, false)
+	if len(input.EntityTypes) == 0 {
+		fmt.Fprintln(stderr, "--entity-types is required by the Platform API")
+		return 2
+	}
+	input.EventTypes = splitList(eventTypes, true)
+	for _, eventType := range input.EventTypes {
+		if eventType != "CREATE" && eventType != "UPDATE" && eventType != "DELETE" {
+			fmt.Fprintln(stderr, "--event-types values must be CREATE, UPDATE, or DELETE")
+			return 2
+		}
+	}
+
+	return executeOpportunityQuery(ctx, globals, stdout, stderr, "change-history.query", input,
+		func(provider appleads.OpportunityProvider, client appleads.RequestContext) (appleads.RawResponse, error) {
+			return provider.QueryChangeHistory(client, input)
+		})
+}
+
+func executeOpportunityQuery(
+	ctx context.Context,
+	globals globalOptions,
+	stdout io.Writer,
+	stderr io.Writer,
+	feature string,
+	requested any,
+	query func(appleads.OpportunityProvider, appleads.RequestContext) (appleads.RawResponse, error),
+) int {
+	cfg := config.Load()
+	if globals.Provider != "" {
+		cfg.Provider = config.NormalizeProvider(globals.Provider)
+	}
+	provider, client, err := buildOpportunityProvider(ctx, cfg, globals.Verbose, stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	response, err := query(provider, client)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	return printValue(stdout, globals.Output, map[string]any{
+		"tool":      "Apple Ads CLI by Lily",
+		"provider":  provider.Name(),
+		"feature":   feature,
+		"requested": requested,
+		"appleAds":  response,
+	}, stderr)
 }
 
 func printReserved(stdout io.Writer, stderr io.Writer, feature string, request map[string]any) int {
 	return printValue(stdout, "json", map[string]any{
-		"tool":              "Apple Ads CLI by Lily",
-		"feature":           feature,
-		"status":            "reserved",
-		"provider":          "platform",
-		"requested":         request,
-		"commercialContext": lilycloud.ProductName,
-		"message":           "This command is reserved for Platform API recommendation/suggestion endpoints and can be enabled as soon as Apple exposes the endpoint contract.",
-		"expectedCommands": []string{
-			"lily ads suggestions cpa --app-id <adamId>",
-			"lily ads recommendations apply --type target-cpa",
+		"tool":      "Apple Ads CLI by Lily",
+		"feature":   feature,
+		"status":    "reserved",
+		"provider":  "platform",
+		"requested": request,
+		"message":   "Read-only Platform API recommendation queries are supported. Applying or dismissing recommendations is not enabled until the write contract is verified.",
+		"supportedCommands": []string{
+			"lily --provider platform ads recommendations keywords --app-id <adamId>",
+			"lily --provider platform ads recommendations target-cpa --app-id <adamId>",
+			"lily --provider platform ads recommendations daily-budget --app-id <adamId>",
 		},
 	}, stderr)
+}
+
+func normalizeSuggestionType(value string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "keyword", "keywords":
+		return "KEYWORD", true
+	case "cpa", "target-cpa", "target-cpas":
+		return "TARGET_CPA", true
+	default:
+		return "", false
+	}
+}
+
+func normalizeRecommendationType(value string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "keyword", "keywords":
+		return "KEYWORD", true
+	case "cpa", "target-cpa", "target-cpas":
+		return "TARGET_CPA", true
+	case "budget", "daily-budget", "daily-budgets":
+		return "DAILY_BUDGET", true
+	default:
+		return "", false
+	}
+}
+
+func normalizeAppID(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", fmt.Errorf("--app-id is required")
+	}
+	if _, err := strconv.ParseInt(value, 10, 64); err != nil {
+		return "", fmt.Errorf("--app-id must be a numeric App Store adamId")
+	}
+	return value, nil
+}
+
+func splitList(value string, upper bool) []string {
+	var result []string
+	seen := map[string]bool{}
+	for _, item := range strings.Split(value, ",") {
+		item = strings.TrimSpace(item)
+		if upper {
+			item = strings.ToUpper(item)
+		}
+		if item == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		result = append(result, item)
+	}
+	return result
+}
+
+func normalizeCountries(value string) []string {
+	countries := splitList(value, true)
+	for index, country := range countries {
+		if country == "UK" {
+			countries[index] = "GB"
+		}
+	}
+	return countries
+}
+
+func validatePagination(limit int, offset int) error {
+	if limit < 1 || limit > 1000 {
+		return fmt.Errorf("--limit must be between 1 and 1000")
+	}
+	if offset < 0 {
+		return fmt.Errorf("--offset must be zero or greater")
+	}
+	return nil
+}
+
+func validateDateRange(from string, to string) error {
+	const layout = "2006-01-02"
+	start, err := time.Parse(layout, from)
+	if err != nil {
+		return fmt.Errorf("--from must use YYYY-MM-DD")
+	}
+	end, err := time.Parse(layout, to)
+	if err != nil {
+		return fmt.Errorf("--to must use YYYY-MM-DD")
+	}
+	if start.After(end) {
+		return fmt.Errorf("--from must not be after --to")
+	}
+	return nil
+}
+
+func normalizePopularityGranularity(value string) string {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "WEEKLY", "WEEKLY_SUN_SAT":
+		return "WEEKLY_SUN_SAT"
+	case "MONTH", "MONTHLY":
+		return "MONTHLY"
+	default:
+		return ""
+	}
+}
+
+func normalizeReportGranularity(value string) string {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "DAY", "DAILY":
+		return "DAILY"
+	case "WEEK", "WEEKLY":
+		return "WEEKLY"
+	case "MONTH", "MONTHLY":
+		return "MONTHLY"
+	default:
+		return ""
+	}
+}
+
+func defaultPopularityRange(from string, to string, granularity string, now time.Time) (string, string) {
+	if from != "" && to != "" {
+		return from, to
+	}
+	utcToday := time.Date(now.UTC().Year(), now.UTC().Month(), now.UTC().Day(), 0, 0, 0, 0, time.UTC)
+	var start time.Time
+	var end time.Time
+	if granularity == "MONTHLY" {
+		start = time.Date(utcToday.Year(), utcToday.Month()-1, 1, 0, 0, 0, 0, time.UTC)
+		end = time.Date(utcToday.Year(), utcToday.Month(), 0, 0, 0, 0, 0, time.UTC)
+	} else {
+		daysSincePreviousSaturday := int(utcToday.Weekday()) + 1
+		end = utcToday.AddDate(0, 0, -daysSincePreviousSaturday)
+		start = end.AddDate(0, 0, -6)
+	}
+	if from == "" {
+		from = start.Format("2006-01-02")
+	}
+	if to == "" {
+		to = end.Format("2006-01-02")
+	}
+	return from, to
+}
+
+func defaultCompletedDateRange(from string, to string, days int, now time.Time) (string, string) {
+	if days < 1 {
+		days = 1
+	}
+	utcToday := time.Date(now.UTC().Year(), now.UTC().Month(), now.UTC().Day(), 0, 0, 0, 0, time.UTC)
+	end := utcToday.AddDate(0, 0, -1)
+	start := end.AddDate(0, 0, -days+1)
+	if from == "" {
+		from = start.Format("2006-01-02")
+	}
+	if to == "" {
+		to = end.Format("2006-01-02")
+	}
+	return from, to
 }
 
 func runPlan(ctx context.Context, args []string, globals globalOptions, stdout io.Writer, stderr io.Writer) int {
@@ -635,6 +1076,21 @@ func buildProvider(ctx context.Context, cfg config.Config, verbose bool, logWrit
 	return provider, client, nil
 }
 
+func buildOpportunityProvider(ctx context.Context, cfg config.Config, verbose bool, logWriter io.Writer) (appleads.OpportunityProvider, appleads.RequestContext, error) {
+	if config.NormalizeProvider(cfg.Provider) != "platform" {
+		return nil, nil, fmt.Errorf("this command requires Apple Ads Platform API 1.0; add --provider platform")
+	}
+	provider, client, err := buildProvider(ctx, cfg, verbose, logWriter, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	opportunityProvider, ok := provider.(appleads.OpportunityProvider)
+	if !ok {
+		return nil, nil, fmt.Errorf("provider %q does not support Platform opportunity queries", provider.Name())
+	}
+	return opportunityProvider, client, nil
+}
+
 type dryRunClient struct{}
 
 func (dryRunClient) Do(method string, path string, body any) (appleads.RawResponse, error) {
@@ -726,8 +1182,11 @@ func printHelp(w io.Writer) {
 		"  lily ads plan create [flags]",
 		"  lily ads reports campaigns [flags]",
 		"  lily ads revenue summary [flags]",
-		"  lily ads suggestions cpa --app-id <adamId>",
-		"  lily ads recommendations apply --type target-cpa",
+		"  lily --provider platform ads suggestions keywords --app-id <adamId>",
+		"  lily --provider platform ads suggestions target-cpa --app-id <adamId>",
+		"  lily --provider platform ads recommendations <keywords|target-cpa|daily-budget> --app-id <adamId>",
+		"  lily --provider platform ads insights <search-term-popularity|impression-share> [flags]",
+		"  lily --provider platform ads change-history <query|detail> [flags]",
 		"",
 		"Global flags:",
 		"  --provider campaignv5|platform   API provider (default: campaignv5)",
@@ -749,8 +1208,11 @@ func printAdsHelp(w io.Writer) {
 		"  lily ads plan create [flags]",
 		"  lily ads reports campaigns [flags]",
 		"  lily ads revenue summary [flags]",
-		"  lily ads suggestions cpa --app-id <adamId>",
-		"  lily ads recommendations apply --type target-cpa",
+		"  lily --provider platform ads suggestions keywords --app-id <adamId>",
+		"  lily --provider platform ads suggestions target-cpa --app-id <adamId>",
+		"  lily --provider platform ads recommendations <keywords|target-cpa|daily-budget> --app-id <adamId>",
+		"  lily --provider platform ads insights <search-term-popularity|impression-share> [flags]",
+		"  lily --provider platform ads change-history <query|detail> [flags]",
 		"",
 		"Apple Ads commands use local Apple Ads API credentials. Run `lily ads doctor` to check setup.",
 		"Lily login is optional and only enables Lily Ads Revenue Analytics enrichment.",

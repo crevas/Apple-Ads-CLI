@@ -19,6 +19,8 @@ Use `lily` as a business-first Apple Ads CLI. Keep Apple Ads operations tied to 
 - If revenue returns `login_required`, `dashboard_required`, or `account_mismatch`, keep the Apple Ads result and skip ROAS.
 - Do not calculate ROAS when the Apple Ads account and Lily revenue account do not match.
 - Default to dry-run JSON plans. Execute writes only after explicit approval.
+- Platform opportunity, insight, and change-history queries are read-only. They
+  do not require write confirmation.
 - When the user asks to create a campaign with incomplete details, first analyze available app/report context and produce a recommended draft. Do not reply with a checklist of missing budget, bid, CPA, or keyword parameters unless app/account identity is ambiguous or a value is truly unsafe to infer.
 
 ## User-Facing Communication
@@ -88,4 +90,25 @@ If revenue is unavailable, say the ad data was retrieved but paid-user, profit, 
 
 ### Platform API
 
-Use `lily ads platform readiness` before Platform API work. Platform API v1 commands may be reserved until Apple exposes endpoint contracts. Do not promise execution for reserved endpoints; say Lily is ready to support them when available.
+Use `lily ads platform readiness` before Platform API work. Select
+`--provider platform` explicitly; classic v5 remains available for compatibility.
+
+## Platform Opportunity Intelligence
+
+Use `--provider platform` for Platform API 1.0 opportunity queries. These
+commands are read-only and do not need write confirmation:
+
+- `lily --provider platform ads suggestions keywords --app-id <adamId>`
+- `lily --provider platform ads suggestions target-cpa --app-id <adamId>`
+- `lily --provider platform ads recommendations keywords --app-id <adamId>`
+- `lily --provider platform ads recommendations target-cpa --app-id <adamId>`
+- `lily --provider platform ads recommendations daily-budget --app-id <adamId>`
+- `lily --provider platform ads insights search-term-popularity --country <CC> --genre <genre>`
+- `lily --provider platform ads insights impression-share --app-id <adamId>`
+- `lily --provider platform ads change-history query --entity-types <types>`
+
+Treat Apple recommendations as decision inputs, not guaranteed outcomes.
+Compare popularity, expected installs/spend/CPA, impression share, and available
+revenue/ROAS evidence before recommending a bid or budget change.
+`recommendations apply` is still reserved and must never be presented as a
+supported write.

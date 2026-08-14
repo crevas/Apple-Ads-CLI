@@ -2,6 +2,9 @@ package platform
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
+	"unicode"
 
 	"github.com/crevas/Apple-Ads-CLI/internal/appleads"
 )
@@ -134,6 +137,38 @@ func (Provider) CreateAd(ctx appleads.RequestContext, input appleads.AdCreate) (
 
 func (Provider) QueryCampaignReport(ctx appleads.RequestContext, input appleads.CampaignReportQuery) (appleads.RawResponse, error) {
 	return ctx.Do("POST", "/reports/apps/campaigns/query", campaignReportPayload(input))
+}
+
+func (Provider) QueryRecommendations(ctx appleads.RequestContext, input appleads.RecommendationQuery) (appleads.RawResponse, error) {
+	path, err := recommendationPath(input.Type)
+	if err != nil {
+		return nil, err
+	}
+	return ctx.Do("POST", path, recommendationPayload(input))
+}
+
+func (Provider) QuerySuggestions(ctx appleads.RequestContext, input appleads.SuggestionQuery) (appleads.RawResponse, error) {
+	path, err := suggestionPath(input.Type)
+	if err != nil {
+		return nil, err
+	}
+	return ctx.Do("POST", path, suggestionPayload(input))
+}
+
+func (Provider) QuerySearchTermPopularity(ctx appleads.RequestContext, input appleads.SearchTermPopularityQuery) (appleads.RawResponse, error) {
+	return ctx.Do("POST", "/insights/apps/search-term-popularity/query", searchTermPopularityPayload(input))
+}
+
+func (Provider) QueryImpressionShare(ctx appleads.RequestContext, input appleads.ImpressionShareQuery) (appleads.RawResponse, error) {
+	return ctx.Do("POST", "/insights/apps/impression-share/query", impressionSharePayload(input))
+}
+
+func (Provider) QueryChangeHistory(ctx appleads.RequestContext, input appleads.ChangeHistoryQuery) (appleads.RawResponse, error) {
+	return ctx.Do("POST", "/change-history/query", changeHistoryPayload(input))
+}
+
+func (Provider) GetChangeHistoryDetail(ctx appleads.RequestContext, detailID string) (appleads.RawResponse, error) {
+	return ctx.Do("GET", "/change-history/"+url.PathEscape(detailID), nil)
 }
 
 func campaignPayload(input appleads.CampaignCreate) map[string]any {
@@ -296,6 +331,164 @@ func campaignReportPayload(input appleads.CampaignReportQuery) map[string]any {
 			"includeRows": []string{"GRAND_TOTAL"},
 		},
 	}
+}
+
+func recommendationPath(recommendationType string) (string, error) {
+	switch strings.ToUpper(strings.TrimSpace(recommendationType)) {
+	case "KEYWORD":
+		return "/recommendations/keywords/query", nil
+	case "TARGET_CPA":
+		return "/recommendations/target-cpas/query", nil
+	case "DAILY_BUDGET":
+		return "/recommendations/daily-budgets/query", nil
+	default:
+		return "", fmt.Errorf("unsupported Platform recommendation type %q", recommendationType)
+	}
+}
+
+func suggestionPath(suggestionType string) (string, error) {
+	switch strings.ToUpper(strings.TrimSpace(suggestionType)) {
+	case "KEYWORD":
+		return "/suggestions/keywords/query", nil
+	case "TARGET_CPA":
+		return "/suggestions/target-cpas/query", nil
+	default:
+		return "", fmt.Errorf("unsupported Platform suggestion type %q", suggestionType)
+	}
+}
+
+func promotedObjectFilters(appID string, listValues bool) []map[string]any {
+	appValue := any(appID)
+	typeValue := any("APPSTORE_APP")
+	if listValues {
+		appValue = []string{appID}
+		typeValue = []string{"APPSTORE_APP"}
+	}
+	return []map[string]any{
+		{"field": "promotedObjectId", "operator": "EQUALS", "value": appValue},
+		{"field": "promotedObjectType", "operator": "EQUALS", "value": typeValue},
+	}
+}
+
+func recommendationPayload(input appleads.RecommendationQuery) map[string]any {
+	filters := promotedObjectFilters(input.AppID, true)
+	if input.State != "" {
+		filters = append(filters, map[string]any{
+			"field": "state", "operator": "EQUALS", "value": []string{input.State},
+		})
+	}
+	payload := map[string]any{
+		"filters": filters,
+		"pagination": map[string]any{
+			"offset": input.Offset, "pageSize": defaultInt(input.Limit, 50),
+		},
+	}
+	return payload
+}
+
+func suggestionPayload(input appleads.SuggestionQuery) map[string]any {
+	filters := promotedObjectFilters(input.AppID, true)
+	if !strings.EqualFold(input.Type, "TARGET_CPA") {
+		if len(input.Terms) > 0 {
+			filters = append(filters, map[string]any{
+				"field": "terms", "operator": "IN", "value": input.Terms,
+			})
+		}
+		if len(input.Countries) > 0 {
+			filters = append(filters, map[string]any{
+				"field": "countriesOrRegions", "operator": "IN", "value": input.Countries,
+			})
+		}
+	}
+	payload := map[string]any{"filters": filters}
+	if !strings.EqualFold(input.Type, "TARGET_CPA") {
+		payload["pagination"] = map[string]any{
+			"offset": input.Offset, "pageSize": defaultInt(input.Limit, 50),
+		}
+	}
+	return payload
+}
+
+func searchTermPopularityPayload(input appleads.SearchTermPopularityQuery) map[string]any {
+	return map[string]any{
+		"filters": []map[string]any{
+			{"field": "countryOrRegion", "operator": "EQUALS", "value": input.Country},
+			{"field": "genre", "operator": "EQUALS", "value": normalizePopularityGenre(input.Genre)},
+		},
+		"timeRange": map[string]any{
+			"start": input.From, "end": input.To, "granularity": input.Granularity,
+		},
+		"pagination": map[string]any{
+			"offset": input.Offset, "pageSize": defaultInt(input.Limit, 100),
+		},
+	}
+}
+
+func impressionSharePayload(input appleads.ImpressionShareQuery) map[string]any {
+	filters := []map[string]any{
+		{"field": "promotedObjectId", "operator": "IN", "value": []string{input.AppID}},
+	}
+	if len(input.Countries) > 0 {
+		filters = append(filters, map[string]any{
+			"field": "countryOrRegion", "operator": "IN", "value": input.Countries,
+		})
+	}
+	if len(input.SearchTerms) > 0 {
+		filters = append(filters, map[string]any{
+			"field": "searchTerm", "operator": "IN", "value": input.SearchTerms,
+		})
+	}
+	return map[string]any{
+		"filters": filters,
+		"timeRange": map[string]any{
+			"start": input.From, "end": input.To, "timeZone": "UTC", "granularity": input.Granularity,
+		},
+		"pagination": map[string]any{
+			"offset": input.Offset, "pageSize": defaultInt(input.Limit, 100),
+		},
+	}
+}
+
+func changeHistoryPayload(input appleads.ChangeHistoryQuery) map[string]any {
+	filters := []map[string]any{
+		{"field": "eventTime", "operator": "BETWEEN", "value": []string{input.From, input.To}},
+	}
+	if len(input.EntityTypes) > 0 {
+		filters = append(filters, map[string]any{
+			"field": "entityType", "operator": "IN", "value": input.EntityTypes,
+		})
+	}
+	if len(input.EventTypes) > 0 {
+		filters = append(filters, map[string]any{
+			"field": "eventType", "operator": "IN", "value": input.EventTypes,
+		})
+	}
+	return map[string]any{
+		"filters": filters,
+		"sorting": []map[string]any{{"field": "eventTime", "order": "DESC"}},
+		"pagination": map[string]any{
+			"offset": input.Offset, "pageSize": defaultInt(input.Limit, 50),
+		},
+		"options": map[string]any{"needTotals": "true"},
+	}
+}
+
+func normalizePopularityGenre(value string) string {
+	value = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(value), "&", " "))
+	var out strings.Builder
+	underscore := false
+	for _, r := range value {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			out.WriteRune(r)
+			underscore = false
+			continue
+		}
+		if out.Len() > 0 && !underscore {
+			out.WriteByte('_')
+			underscore = true
+		}
+	}
+	return strings.Trim(out.String(), "_")
 }
 
 func defaultString(value string, fallback string) string {

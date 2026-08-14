@@ -85,10 +85,16 @@ func (c *Client) DoWithContext(ctx context.Context, method string, path string, 
 	var parsed map[string]any
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &parsed); err != nil {
+			if resp.StatusCode >= 400 {
+				return nil, APIError{StatusCode: resp.StatusCode, Raw: strings.TrimSpace(string(raw))}
+			}
 			return nil, fmt.Errorf("parse response (%d): %w: %s", resp.StatusCode, err, string(raw))
 		}
 	}
 	if resp.StatusCode >= 400 {
+		return nil, APIError{StatusCode: resp.StatusCode, Body: parsed, Raw: string(raw)}
+	}
+	if hasPlatformError(parsed) {
 		return nil, APIError{StatusCode: resp.StatusCode, Body: parsed, Raw: string(raw)}
 	}
 	return RawResponse(parsed), nil
@@ -102,6 +108,9 @@ type APIError struct {
 
 func (e APIError) Error() string {
 	if msg := platformErrorMessage(e.Body); msg != "" {
+		if e.StatusCode >= 200 && e.StatusCode < 300 {
+			return fmt.Sprintf("apple ads api response error: %s", msg)
+		}
 		return fmt.Sprintf("apple ads api error %d: %s", e.StatusCode, msg)
 	}
 	if e.Raw != "" {
@@ -110,17 +119,25 @@ func (e APIError) Error() string {
 	return fmt.Sprintf("apple ads api error %d", e.StatusCode)
 }
 
+func hasPlatformError(body map[string]any) bool {
+	if body == nil || body["error"] == nil {
+		return false
+	}
+	return platformErrorMessage(body) != ""
+}
+
 func platformErrorMessage(body map[string]any) string {
 	if body == nil {
 		return ""
 	}
 	if errorObj, ok := body["error"].(map[string]any); ok {
-		if msg, ok := errorObj["message"].(string); ok && msg != "" {
-			return msg
-		}
+		message, _ := errorObj["message"].(string)
 		if details, ok := errorObj["details"].([]any); ok && len(details) > 0 {
 			if detail, ok := details[0].(map[string]any); ok {
 				if msg, ok := detail["message"].(string); ok && msg != "" {
+					if message != "" && message != msg {
+						return message + ": " + msg
+					}
 					return msg
 				}
 			}
@@ -131,6 +148,9 @@ func platformErrorMessage(body map[string]any) string {
 					return msg
 				}
 			}
+		}
+		if message != "" {
+			return message
 		}
 	}
 	if msg, ok := body["message"].(string); ok && msg != "" {

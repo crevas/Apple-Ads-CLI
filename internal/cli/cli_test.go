@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/crevas/Apple-Ads-CLI/internal/appleads"
 	"github.com/crevas/Apple-Ads-CLI/internal/config"
@@ -206,6 +207,73 @@ func TestRevenueQueryWithAppleAdsContextUsesProviderScope(t *testing.T) {
 	}
 	if platform.AppleAdsOrgID != "" {
 		t.Fatalf("platform org id = %q, want empty", platform.AppleAdsOrgID)
+	}
+}
+
+func TestPlatformOpportunityCommandRequiresPlatformProvider(t *testing.T) {
+	t.Setenv("LILY_ADS_CONFIG", t.TempDir()+"/apple-ads.json")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(context.Background(), []string{
+		"ads", "suggestions", "keywords", "--app-id", "999999999",
+	}, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("Run returned code %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), "--provider platform") {
+		t.Fatalf("stderr = %q, want Platform provider guidance", stderr.String())
+	}
+}
+
+func TestChangeHistoryRequiresEntityTypesBeforeAuthentication(t *testing.T) {
+	t.Setenv("LILY_ADS_CONFIG", t.TempDir()+"/apple-ads.json")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(context.Background(), []string{
+		"--provider", "platform", "ads", "change-history", "query",
+		"--from", "2026-08-01", "--to", "2026-08-07",
+	}, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("Run returned code %d, want 2", code)
+	}
+	if !strings.Contains(stderr.String(), "--entity-types is required") {
+		t.Fatalf("stderr = %q, want entity-type guidance", stderr.String())
+	}
+}
+
+func TestOpportunityTypeAliases(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		want  string
+	}{
+		{"keywords", "KEYWORD"},
+		{"target-cpa", "TARGET_CPA"},
+	} {
+		got, ok := normalizeSuggestionType(test.input)
+		if !ok || got != test.want {
+			t.Fatalf("normalizeSuggestionType(%q) = %q, %v; want %q, true", test.input, got, ok, test.want)
+		}
+	}
+	if got, ok := normalizeRecommendationType("daily-budget"); !ok || got != "DAILY_BUDGET" {
+		t.Fatalf("normalizeRecommendationType(daily-budget) = %q, %v", got, ok)
+	}
+}
+
+func TestOpportunityDefaultDateRanges(t *testing.T) {
+	now := time.Date(2026, time.August, 14, 10, 0, 0, 0, time.UTC)
+	from, to := defaultPopularityRange("", "", "WEEKLY_SUN_SAT", now)
+	if from != "2026-08-02" || to != "2026-08-08" {
+		t.Fatalf("weekly popularity range = %s..%s, want 2026-08-02..2026-08-08", from, to)
+	}
+	from, to = defaultPopularityRange("", "", "MONTHLY", now)
+	if from != "2026-07-01" || to != "2026-07-31" {
+		t.Fatalf("monthly popularity range = %s..%s, want 2026-07-01..2026-07-31", from, to)
+	}
+	from, to = defaultCompletedDateRange("", "", 7, now)
+	if from != "2026-08-07" || to != "2026-08-13" {
+		t.Fatalf("completed range = %s..%s, want 2026-08-07..2026-08-13", from, to)
 	}
 }
 

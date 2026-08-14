@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.2.1
+
+- Adds read-only Platform API 1.0 commands for keyword suggestions; keyword,
+  target CPA, and daily-budget recommendations; search-term popularity;
+  expanded impression share; and change history.
+- Adds pagination, date-range, country, genre, search-term, recommendation-state,
+  and change-type filters with AI-friendly JSON output.
+- Rejects Platform error envelopes returned with HTTP 200 and reports non-JSON
+  Apple 5xx responses as API errors instead of JSON parse failures.
+- Verifies the new read-only query contracts against a configured Apple Ads
+  account without applying or dismissing recommendations.
+
 ## 0.2.0
 
 - Fixes Platform API v1 campaign reports by requesting the supported
