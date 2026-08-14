@@ -1,13 +1,12 @@
 package platform
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/crevas/Apple-Ads-CLI/internal/appleads"
 )
 
-func TestCampaignReportPayloadIncludesRowAndGrandTotals(t *testing.T) {
+func TestCampaignReportPayloadUsesSupportedGrandTotalOption(t *testing.T) {
 	payload := campaignReportPayload(appleads.CampaignReportQuery{
 		AppID:       "999999999",
 		From:        "2026-06-01",
@@ -24,9 +23,7 @@ func TestCampaignReportPayloadIncludesRowAndGrandTotals(t *testing.T) {
 		t.Fatalf("includeRows = %#v, want []string", options["includeRows"])
 	}
 
-	for _, row := range []string{"ROW_TOTAL", "GRAND_TOTAL"} {
-		if !slices.Contains(includeRows, row) {
-			t.Fatalf("includeRows = %v, want %s", includeRows, row)
-		}
+	if len(includeRows) != 1 || includeRows[0] != "GRAND_TOTAL" {
+		t.Fatalf("includeRows = %v, want [GRAND_TOTAL]", includeRows)
 	}
 }

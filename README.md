@@ -17,7 +17,7 @@ a business-first approach:
   attachment in one command
 - return JSON by default so Codex, Claude Code, CI, and humans can review plans
   through business summaries and confirmation choices
-- keep the current v5 API working while preparing for Apple Ads Platform API v1
+- keep the current v5 API working while supporting live Apple Ads Platform API v1
 - optionally add keyword-level revenue analytics through Lily with RevenueCat
   or AppsFlyer
 
@@ -100,8 +100,7 @@ Dry-run responses include `review` and `confirmation` objects so AI agents can
 show a business summary and ask the user to confirm, modify, or cancel.
 Writes require explicit budget, bid, and keywords.
 
-Preview the same business command against the next-generation Platform
-provider:
+Use the same business command with the Platform API v1 provider:
 
 ```sh
 lily --provider platform ads plan create \
@@ -235,6 +234,10 @@ The CLI hides API shape changes behind providers:
 campaignv5 -> https://api.searchads.apple.com/api/v5
 platform   -> https://api.ads.apple.com/v1
 ```
+
+Live Platform API v1 campaign reporting is verified. `campaignv5` remains the
+default provider during migration; select v1 explicitly with
+`--provider platform` or `APPLE_ADS_PROVIDER=platform`.
 
 Known compatibility differences handled by the providers:
 

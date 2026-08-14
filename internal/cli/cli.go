@@ -17,7 +17,7 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/providers/platform"
 )
 
-const version = "0.1.6"
+const version = "0.2.0"
 
 type globalOptions struct {
 	Provider string
@@ -259,8 +259,8 @@ func runPlatform(args []string, stdout io.Writer, stderr io.Writer) int {
 				"businessPlanCommand":   "lily ads plan create",
 			},
 			"notes": []string{
-				"Platform provider is implemented behind --provider platform.",
-				"campaignv5 remains the default until Platform API v1 is generally available.",
+				"Platform provider is available behind --provider platform.",
+				"Live Platform API v1 campaign reporting is verified; campaignv5 remains the default during migration.",
 			},
 		}, stderr)
 	default:

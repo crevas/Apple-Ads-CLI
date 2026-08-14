@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.2.0
+
+- Fixes Platform API v1 campaign reports by requesting the supported
+  `GRAND_TOTAL` row option without the rejected `ROW_TOTAL` value.
+- Adds a regression test that keeps the Platform report payload aligned with
+  the live v1 request contract.
+- Marks live Platform API v1 campaign reporting as verified while retaining
+  Campaign Management API v5 as the compatibility default during migration.
+
 ## 0.1.6
 
 - Adds `lily ads plan recommend` for business-first campaign drafts when an
