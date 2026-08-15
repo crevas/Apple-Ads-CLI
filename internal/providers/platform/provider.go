@@ -9,8 +9,9 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/appleads"
 )
 
-// Contract source: @apple/apple-ads-platform 1.109.0. Apple does not publish a
-// Go client, so this provider mirrors the generated request models and routes.
+// Contract source: @apple/apple-ads-platform 1.109.0, pinned in
+// apple_sdk_contract_version.txt. Apple does not publish a Go client, so this
+// provider mirrors the generated request models and routes.
 type Provider struct {
 	AdAccountID string
 }

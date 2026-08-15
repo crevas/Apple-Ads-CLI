@@ -1,0 +1,28 @@
+name: Apple Ads SDK Contract
+
+on:
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Compare the pinned and published SDK versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned="$(tr -d '[:space:]' < internal/providers/platform/apple_sdk_contract_version.txt)"
+          published="$(curl --retry 3 --fail --silent --show-error https://registry.npmjs.org/@apple%2Fapple-ads-platform/latest | jq -r .version)"
+          if [[ "$pinned" != "$published" ]]; then
+            echo "::error::Apple Ads SDK contract update available: pinned=$pinned published=$published"
+            exit 1
+          fi
+          echo "Apple Ads SDK contract is current: $pinned"
