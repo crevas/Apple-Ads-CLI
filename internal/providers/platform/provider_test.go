@@ -42,16 +42,16 @@ func TestCampaignReportPayloadUsesSupportedGrandTotalOption(t *testing.T) {
 	}
 }
 
-func TestKeywordRecommendationsUsePlatformOpportunityContract(t *testing.T) {
+func TestRecommendationsUseOnlyDocumentedGAEndpoints(t *testing.T) {
 	ctx := &recordingContext{}
 	_, err := New().QueryRecommendations(ctx, appleads.RecommendationQuery{
-		AppID: "123456", Type: "KEYWORD", State: "AVAILABLE", Limit: 20,
+		AppID: "123456", Type: "TARGET_CPA", State: "AVAILABLE", Limit: 20,
 	})
 	if err != nil {
 		t.Fatalf("QueryRecommendations returned error: %v", err)
 	}
-	if ctx.method != "POST" || ctx.path != "/recommendations/keywords/query" {
-		t.Fatalf("request = %s %s, want POST /recommendations/keywords/query", ctx.method, ctx.path)
+	if ctx.method != "POST" || ctx.path != "/recommendations/target-cpas/query" {
+		t.Fatalf("request = %s %s, want POST /recommendations/target-cpas/query", ctx.method, ctx.path)
 	}
 	assertJSONEqual(t, ctx.body, map[string]any{
 		"filters": []map[string]any{
@@ -61,6 +61,10 @@ func TestKeywordRecommendationsUsePlatformOpportunityContract(t *testing.T) {
 		},
 		"pagination": map[string]any{"offset": 0, "pageSize": 20},
 	})
+
+	if _, err := New().QueryRecommendations(ctx, appleads.RecommendationQuery{Type: "KEYWORD"}); err == nil {
+		t.Fatal("undocumented keyword recommendations must be rejected")
+	}
 }
 
 func TestSuggestionsCoverKeywordsAndTargetCPA(t *testing.T) {
@@ -83,6 +87,18 @@ func TestSuggestionsCoverKeywordsAndTargetCPA(t *testing.T) {
 
 	ctx = &recordingContext{}
 	_, err = New().QuerySuggestions(ctx, appleads.SuggestionQuery{
+		Type: "PHRASE", QueryType: "SEARCH", Phrases: []string{"task manager", "to do list"},
+	})
+	if err != nil {
+		t.Fatalf("QuerySuggestions phrase search returned error: %v", err)
+	}
+	assertJSONEqual(t, ctx.body.(map[string]any)["filters"], []map[string]any{
+		{"field": "queryType", "operator": "EQUALS", "value": []string{"SEARCH"}},
+		{"field": "phrase", "operator": "IN", "value": []string{"task manager", "to do list"}},
+	})
+
+	ctx = &recordingContext{}
+	_, err = New().QuerySuggestions(ctx, appleads.SuggestionQuery{
 		AppID: "987654", Type: "TARGET_CPA", Terms: []string{"ignored"}, Countries: []string{"US"},
 	})
 	if err != nil {
@@ -98,6 +114,34 @@ func TestSuggestionsCoverKeywordsAndTargetCPA(t *testing.T) {
 	if got := len(payload["filters"].([]map[string]any)); got != 2 {
 		t.Fatalf("target CPA filters = %d, want promoted-object filters only", got)
 	}
+
+	ctx = &recordingContext{}
+	_, err = New().QuerySuggestions(ctx, appleads.SuggestionQuery{
+		AppID: "987654", Type: "PHRASE", QueryType: "SUGGESTION", Terms: []string{"ignored"}, Countries: []string{"US"},
+	})
+	if err != nil {
+		t.Fatalf("QuerySuggestions phrase returned error: %v", err)
+	}
+	if ctx.path != "/suggestions/phrases/query" {
+		t.Fatalf("path = %q, want phrase suggestion path", ctx.path)
+	}
+	assertJSONEqual(t, ctx.body.(map[string]any)["filters"], []map[string]any{
+		{"field": "promotedObjectId", "operator": "EQUALS", "value": []string{"987654"}},
+		{"field": "promotedObjectType", "operator": "EQUALS", "value": []string{"APPSTORE_APP"}},
+		{"field": "queryType", "operator": "EQUALS", "value": []string{"SUGGESTION"}},
+	})
+
+	ctx = &recordingContext{}
+	_, err = New().QuerySuggestions(ctx, appleads.SuggestionQuery{
+		Type: "CATEGORY", QueryType: "SEARCH", Categories: []string{"Productivity", "Business"},
+	})
+	if err != nil {
+		t.Fatalf("QuerySuggestions category search returned error: %v", err)
+	}
+	assertJSONEqual(t, ctx.body.(map[string]any)["filters"], []map[string]any{
+		{"field": "queryType", "operator": "EQUALS", "value": []string{"SEARCH"}},
+		{"field": "category", "operator": "IN", "value": []string{"Productivity", "Business"}},
+	})
 }
 
 func TestSearchTermPopularityNormalizesGenre(t *testing.T) {
@@ -117,10 +161,10 @@ func TestSearchTermPopularityNormalizesGenre(t *testing.T) {
 		t.Fatalf("genre = %v, want PHOTO_VIDEO", filters[1]["value"])
 	}
 	assertJSONEqual(t, payload["timeRange"], map[string]any{
-		"start": "2026-08-02", "end": "2026-08-08", "granularity": "WEEKLY_SUN_SAT",
+		"start": "2026-08-02", "end": "2026-08-08", "timeZone": "UTC", "granularity": "WEEKLY_SUN_SAT",
 	})
 	if _, ok := payload["sorting"]; ok {
-		t.Fatalf("search-term popularity sorting is not accepted by the live v1 contract: %#v", payload["sorting"])
+		t.Fatal("search-term popularity omits sorting because the live v1 endpoint rejects the SDK 1.109.0 Sorting.order field")
 	}
 }
 
@@ -128,7 +172,7 @@ func TestImpressionShareUsesAppMarketAndSearchTermFilters(t *testing.T) {
 	ctx := &recordingContext{}
 	_, err := New().QueryImpressionShare(ctx, appleads.ImpressionShareQuery{
 		AppID: "123456", From: "2026-08-01", To: "2026-08-07", Granularity: "DAILY",
-		Countries: []string{"US"}, SearchTerms: []string{"task manager"}, Limit: 50,
+		ReportType: "ALL_SLOTS", Countries: []string{"US"}, SearchTerms: []string{"task manager"}, Limit: 50,
 	})
 	if err != nil {
 		t.Fatalf("QueryImpressionShare returned error: %v", err)
@@ -144,6 +188,57 @@ func TestImpressionShareUsesAppMarketAndSearchTermFilters(t *testing.T) {
 	})
 	assertJSONEqual(t, payload["timeRange"], map[string]any{
 		"start": "2026-08-01", "end": "2026-08-07", "timeZone": "UTC", "granularity": "DAILY",
+	})
+	assertJSONEqual(t, payload["options"], map[string]any{"impressionShareReportType": "ALL_SLOTS"})
+}
+
+func TestCampaignAndBulkPayloadsMatchAppleSDKModels(t *testing.T) {
+	provider := New("321")
+	campaign := provider.campaignPayload(appleads.CampaignCreate{
+		Name: "US Search", AppID: "123456", Countries: []string{"US"}, Currency: "USD", DailyBudget: "20", Status: "PAUSED",
+	})
+	assertJSONEqual(t, campaign["adAccountId"], int64(321))
+	assertJSONEqual(t, campaign["bidStrategy"], map[string]any{
+		"bidStrategyType": "MANUAL_CPT", "bidStrategyGoal": "TAP",
+	})
+
+	adGroup := adGroupPayload(appleads.AdGroupCreate{
+		CampaignID: "55", Name: "Exact", Currency: "USD", Bid: "1.20", CPAGoal: "4.50", Status: "PAUSED",
+	})
+	assertJSONEqual(t, adGroup["cpaCap"], map[string]any{
+		"value": appleads.Money{Amount: "4.50", Currency: "USD"},
+	})
+	assertJSONEqual(t, adGroup["bidStrategy"], map[string]any{
+		"bidStrategyType": "MANUAL_CPT", "bidStrategyGoal": "TAP",
+		"bid": appleads.Money{Amount: "1.20", Currency: "USD"},
+	})
+	if _, ok := adGroup["targetCPA"]; ok {
+		t.Fatal("AdGroupCreate uses cpaCap, not targetCPA")
+	}
+
+	keywords := keywordBulkPayload([]appleads.KeywordCreate{{
+		AdGroupID: "77", Text: "task manager", MatchType: "EXACT", Currency: "USD", Bid: "1.10", Status: "ENABLED",
+	}}, true)
+	assertJSONEqual(t, keywords, map[string]any{
+		"allowPartialSuccess": true,
+		"items": []map[string]any{{
+			"correlationId": 1,
+			"data": map[string]any{
+				"adGroupId": int64(77), "text": "task manager", "status": "ENABLED", "matchType": "EXACT",
+				"bid": appleads.Money{Amount: "1.10", Currency: "USD"},
+			},
+		}},
+	})
+
+	negatives := negativeBulkPayload([]appleads.NegativeKeywordCreate{{
+		CampaignID: "55", Text: "free", MatchType: "EXACT", Status: "ENABLED",
+	}}, true)
+	assertJSONEqual(t, negatives, map[string]any{
+		"allowPartialSuccess": true,
+		"items": []map[string]any{{
+			"correlationId": 1,
+			"data":          map[string]any{"campaignId": int64(55), "text": "free", "status": "ENABLED", "matchType": "EXACT"},
+		}},
 	})
 }
 

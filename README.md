@@ -1,9 +1,10 @@
 # Apple Ads CLI by Lily
 
-> **Apple Ads Platform API 1.0 is supported in Lily 0.2.0.** (2026-08-14) Use the
+> **Apple Ads Platform API 1.0 is supported in Lily 0.2.0.** (2026-08-15) Use the
 > `platform` provider for Platform API campaign workflows and live campaign
 > reporting. Authenticated reporting has been verified against Apple's v1
-> endpoint. Lily 0.2.1 adds read-only opportunity intelligence commands.
+> endpoint. Lily 0.2.2 aligns v1 request models, routes, and enums with Apple's
+> official open-source Node SDK while retaining the classic v5 provider.
 
 Apple Ads CLI by Lily is an open-source, AI-friendly, business-first command
 line tool for planning Apple Ads campaign packages, reviewing AI-agent generated
@@ -23,21 +24,26 @@ and decide where bids or budget have room to grow before spending more.
 
 | Platform API 1.0 intelligence | Better campaign decision | Potential performance impact |
 | --- | --- | --- |
-| Keyword suggestions | Expand from an app or seed terms into related App Store demand. | Find relevant reach without building every keyword list manually. |
-| Personalized keyword recommendations | Compare popularity and expected impressions, taps, installs, spend, and CPA before adding a keyword. | Prioritize opportunities with enough volume and acceptable acquisition economics. |
+| Keyword, phrase, and category suggestions | Expand from an app or seed terms into related App Store demand, phrases, and categories. | Find relevant reach without building every opportunity set manually. |
 | Search-term popularity insights | Query weekly or monthly search-term rank and popularity by country and App Store genre. | Spot rising demand and localization opportunities earlier. |
-| Target CPA and daily budget recommendations | Identify campaigns where a different acquisition target or budget may unlock incremental installs. | Reduce avoidable underfunding and make scaling decisions with estimated outcomes. |
+| Target CPA suggestions plus target CPA and daily budget recommendations | Set a campaign starting point, then identify live campaigns where a different acquisition target or budget may unlock incremental installs. | Reduce avoidable underfunding and make scaling decisions with estimated outcomes. |
 | Expanded impression-share insights | Compare first-slot and all-slot visibility by search term and market. | Separate genuine auction headroom from keywords with limited demand. |
 | Change history | Trace campaign edits and field-level changes by time, entity, and event type. | Diagnose performance shifts faster and avoid repeating harmful changes. |
+| Apple Maps brand and location workflows | Work with business brands, location groups, locations, eligibility, and dedicated brand reports. | Bring Maps campaign planning and measurement into the same automation stack. |
+| Campaign groups, creatives, and bulk operations | Scale ad-account organization, new creative models, and correlated bulk changes. | Launch and reconcile larger programs with less manual object stitching. |
 
 The strongest workflow combines these Apple opportunity signals with actual
 post-install revenue. Apple can estimate installs, spend, and CPA; RevenueCat or
 AppsFlyer can show whether the acquired users produce enough revenue and ROAS to
 justify scaling.
 
-Lily CLI 0.2.1 turns these opportunity signals into read-only commands while
+Lily CLI 0.2.2 turns the supported opportunity signals into read-only commands while
 retaining Platform campaign workflows, authenticated live reporting, and the
 classic v5 provider. Querying an opportunity never applies or dismisses it.
+
+Important contract distinction: Platform API 1.0 does not document a keyword
+recommendations endpoint. Keyword, phrase, and category discovery belongs to
+Suggestions. Recommendations covers target CPA and daily budget.
 
 Read the full guide: [What Platform API 1.0 unlocks for campaign performance](https://www.chatlily.ai/guides/apple-ads-platform-api-1-0-new-features)
 
@@ -115,7 +121,10 @@ a campaign:
 lily --provider platform ads suggestions keywords \
   --app-id 999999999 --countries US --terms "flight booking"
 
-lily --provider platform ads recommendations keywords \
+lily --provider platform ads suggestions phrases \
+  --query-type search --phrases "flight booking,cheap flights"
+
+lily --provider platform ads recommendations target-cpa \
   --app-id 999999999 --state AVAILABLE
 
 lily --provider platform ads insights search-term-popularity \
@@ -295,10 +304,17 @@ platform   -> https://api.ads.apple.com/v1
 ```
 
 Lily 0.2.0 introduced Apple Ads Platform API 1.0 campaign workflows and
-authenticated live campaign reporting. Lily 0.2.1 adds read-only opportunity
-and insight queries. `campaignv5` remains the default provider during migration;
+authenticated live campaign reporting. Lily 0.2.2 aligns requests with Apple's
+official open-source Node SDK contract and completes the documented read-only
+opportunity and insight queries. `campaignv5` remains the default provider during migration;
 select Platform API 1.0 explicitly with
 `--provider platform` or `APPLE_ADS_PROVIDER=platform`.
+
+Apple publishes official Node, Python, Java, and Swift clients, but not a Go
+client. The CLI therefore keeps its small Go HTTP provider and treats
+`@apple/apple-ads-platform` 1.109.0 as the generated contract source for v1
+models, endpoint paths, enums, and regression tests. Apple's announced
+retirement date for Campaign Management API v5 is January 26, 2027.
 
 Known compatibility differences handled by the providers:
 
@@ -313,8 +329,11 @@ Read-only Platform opportunity commands:
 
 ```sh
 lily --provider platform ads suggestions keywords --app-id 999999999 --countries US
+lily --provider platform ads suggestions phrases --app-id 999999999
+lily --provider platform ads suggestions phrases --query-type search --phrases "task manager,to do list"
+lily --provider platform ads suggestions categories --app-id 999999999
+lily --provider platform ads suggestions categories --query-type search --categories Productivity,Business
 lily --provider platform ads suggestions target-cpa --app-id 999999999
-lily --provider platform ads recommendations keywords --app-id 999999999
 lily --provider platform ads recommendations target-cpa --app-id 999999999
 lily --provider platform ads recommendations daily-budget --app-id 999999999
 lily --provider platform ads insights search-term-popularity --country US --genre Travel
@@ -338,8 +357,9 @@ lily ads plan create [flags]
 lily ads reports campaigns [flags]
 lily ads revenue summary [flags]
 lily --provider platform ads suggestions keywords [flags]
+lily --provider platform ads suggestions phrases [flags]
+lily --provider platform ads suggestions categories [flags]
 lily --provider platform ads suggestions target-cpa [flags]
-lily --provider platform ads recommendations keywords [flags]
 lily --provider platform ads recommendations target-cpa [flags]
 lily --provider platform ads recommendations daily-budget [flags]
 lily --provider platform ads insights search-term-popularity [flags]

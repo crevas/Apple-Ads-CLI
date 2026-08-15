@@ -58,7 +58,7 @@ func (c *Client) DoWithContext(ctx context.Context, method string, path string, 
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/json")
 	if c.ContextHeader != "" {
-		req.Header.Set("X-AP-Context", c.ContextHeader)
+		req.Header.Set("X-Ap-Context", c.ContextHeader)
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")

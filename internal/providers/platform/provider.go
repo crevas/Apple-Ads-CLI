@@ -9,10 +9,18 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/appleads"
 )
 
-type Provider struct{}
+// Contract source: @apple/apple-ads-platform 1.109.0. Apple does not publish a
+// Go client, so this provider mirrors the generated request models and routes.
+type Provider struct {
+	AdAccountID string
+}
 
-func New() Provider {
-	return Provider{}
+func New(adAccountID ...string) Provider {
+	provider := Provider{}
+	if len(adAccountID) > 0 {
+		provider.AdAccountID = strings.TrimSpace(adAccountID[0])
+	}
+	return provider
 }
 
 func (Provider) Name() string {
@@ -20,7 +28,7 @@ func (Provider) Name() string {
 }
 
 func (p Provider) PlannedRequests(input appleads.PlanCreateInput) []appleads.PlannedRequest {
-	campaign := campaignPayload(appleads.CampaignCreate{
+	campaign := p.campaignPayload(appleads.CampaignCreate{
 		Name:        input.Name,
 		AppID:       input.AppID,
 		Countries:   input.Countries,
@@ -95,8 +103,8 @@ func (p Provider) PlannedRequests(input appleads.PlanCreateInput) []appleads.Pla
 	return planned
 }
 
-func (Provider) CreateCampaign(ctx appleads.RequestContext, input appleads.CampaignCreate) (appleads.RawResponse, string, error) {
-	resp, err := ctx.Do("POST", "/campaigns", campaignPayload(input))
+func (p Provider) CreateCampaign(ctx appleads.RequestContext, input appleads.CampaignCreate) (appleads.RawResponse, string, error) {
+	resp, err := ctx.Do("POST", "/campaigns", p.campaignPayload(input))
 	if err != nil {
 		return nil, "", err
 	}
@@ -171,8 +179,13 @@ func (Provider) GetChangeHistoryDetail(ctx appleads.RequestContext, detailID str
 	return ctx.Do("GET", "/change-history/"+url.PathEscape(detailID), nil)
 }
 
-func campaignPayload(input appleads.CampaignCreate) map[string]any {
+func (p Provider) campaignPayload(input appleads.CampaignCreate) map[string]any {
+	adAccountID := p.AdAccountID
+	if adAccountID == "" {
+		adAccountID = "$adAccountId"
+	}
 	payload := map[string]any{
+		"adAccountId":        parseIDOrToken(adAccountID),
 		"name":               input.Name,
 		"status":             defaultString(input.Status, "ENABLED"),
 		"promotedObjectType": "APPSTORE_APP",
@@ -180,7 +193,7 @@ func campaignPayload(input appleads.CampaignCreate) map[string]any {
 		"billingEvent":       "TAPS",
 		"bidStrategy": map[string]any{
 			"bidStrategyType": "MANUAL_CPT",
-			"bidStrategyGoal": "TAPS",
+			"bidStrategyGoal": "TAP",
 		},
 		"dailyBudget": map[string]any{
 			"value": appleads.Money{Amount: input.DailyBudget, Currency: input.Currency},
@@ -209,12 +222,14 @@ func adGroupPayload(input appleads.AdGroupCreate) map[string]any {
 		"automatedKeywordsRequired": false,
 		"bidStrategy": map[string]any{
 			"bidStrategyType": "MANUAL_CPT",
-			"bidStrategyGoal": "TAPS",
+			"bidStrategyGoal": "TAP",
 			"bid":             appleads.Money{Amount: input.Bid, Currency: input.Currency},
 		},
 	}
 	if input.CPAGoal != "" {
-		payload["targetCPA"] = appleads.Money{Amount: input.CPAGoal, Currency: input.Currency}
+		payload["cpaCap"] = map[string]any{
+			"value": appleads.Money{Amount: input.CPAGoal, Currency: input.Currency},
+		}
 	}
 	if input.StartTime != "" {
 		payload["startTime"] = input.StartTime
@@ -226,19 +241,22 @@ func adGroupPayload(input appleads.AdGroupCreate) map[string]any {
 }
 
 func keywordBulkPayload(keywords []appleads.KeywordCreate, allowPartial bool) map[string]any {
-	operations := make([]map[string]any, 0, len(keywords))
-	for _, keyword := range keywords {
-		operations = append(operations, map[string]any{
-			"adGroupId": parseIDOrToken(keyword.AdGroupID),
-			"text":      keyword.Text,
-			"status":    defaultString(keyword.Status, "ENABLED"),
-			"matchType": keyword.MatchType,
-			"bid":       appleads.Money{Amount: keyword.Bid, Currency: keyword.Currency},
+	items := make([]map[string]any, 0, len(keywords))
+	for index, keyword := range keywords {
+		items = append(items, map[string]any{
+			"correlationId": index + 1,
+			"data": map[string]any{
+				"adGroupId": parseIDOrToken(keyword.AdGroupID),
+				"text":      keyword.Text,
+				"status":    defaultString(keyword.Status, "ENABLED"),
+				"matchType": keyword.MatchType,
+				"bid":       appleads.Money{Amount: keyword.Bid, Currency: keyword.Currency},
+			},
 		})
 	}
 	return map[string]any{
 		"allowPartialSuccess": allowPartial,
-		"operations":          operations,
+		"items":               items,
 	}
 }
 
@@ -257,8 +275,8 @@ func negativeCreates(campaignID string, adGroupID string, keywords []appleads.Ne
 }
 
 func negativeBulkPayload(keywords []appleads.NegativeKeywordCreate, allowPartial bool) map[string]any {
-	operations := make([]map[string]any, 0, len(keywords))
-	for _, keyword := range keywords {
+	items := make([]map[string]any, 0, len(keywords))
+	for index, keyword := range keywords {
 		body := map[string]any{
 			"text":      keyword.Text,
 			"status":    defaultString(keyword.Status, "ENABLED"),
@@ -269,11 +287,14 @@ func negativeBulkPayload(keywords []appleads.NegativeKeywordCreate, allowPartial
 		} else {
 			body["campaignId"] = parseIDOrToken(keyword.CampaignID)
 		}
-		operations = append(operations, body)
+		items = append(items, map[string]any{
+			"correlationId": index + 1,
+			"data":          body,
+		})
 	}
 	return map[string]any{
 		"allowPartialSuccess": allowPartial,
-		"operations":          operations,
+		"items":               items,
 	}
 }
 
@@ -335,8 +356,6 @@ func campaignReportPayload(input appleads.CampaignReportQuery) map[string]any {
 
 func recommendationPath(recommendationType string) (string, error) {
 	switch strings.ToUpper(strings.TrimSpace(recommendationType)) {
-	case "KEYWORD":
-		return "/recommendations/keywords/query", nil
 	case "TARGET_CPA":
 		return "/recommendations/target-cpas/query", nil
 	case "DAILY_BUDGET":
@@ -350,6 +369,10 @@ func suggestionPath(suggestionType string) (string, error) {
 	switch strings.ToUpper(strings.TrimSpace(suggestionType)) {
 	case "KEYWORD":
 		return "/suggestions/keywords/query", nil
+	case "PHRASE":
+		return "/suggestions/phrases/query", nil
+	case "CATEGORY":
+		return "/suggestions/categories/query", nil
 	case "TARGET_CPA":
 		return "/suggestions/target-cpas/query", nil
 	default:
@@ -387,8 +410,15 @@ func recommendationPayload(input appleads.RecommendationQuery) map[string]any {
 }
 
 func suggestionPayload(input appleads.SuggestionQuery) map[string]any {
-	filters := promotedObjectFilters(input.AppID, true)
-	if !strings.EqualFold(input.Type, "TARGET_CPA") {
+	queryType := defaultString(strings.ToUpper(strings.TrimSpace(input.QueryType)), "SUGGESTION")
+	isPhraseSearch := strings.EqualFold(input.Type, "PHRASE") && queryType == "SEARCH"
+	isCategorySearch := strings.EqualFold(input.Type, "CATEGORY") && queryType == "SEARCH"
+	isSearch := isPhraseSearch || isCategorySearch
+	filters := []map[string]any{}
+	if !isSearch {
+		filters = promotedObjectFilters(input.AppID, true)
+	}
+	if strings.EqualFold(input.Type, "KEYWORD") {
 		if len(input.Terms) > 0 {
 			filters = append(filters, map[string]any{
 				"field": "terms", "operator": "IN", "value": input.Terms,
@@ -399,6 +429,21 @@ func suggestionPayload(input appleads.SuggestionQuery) map[string]any {
 				"field": "countriesOrRegions", "operator": "IN", "value": input.Countries,
 			})
 		}
+	}
+	if strings.EqualFold(input.Type, "PHRASE") || strings.EqualFold(input.Type, "CATEGORY") {
+		filters = append(filters, map[string]any{
+			"field": "queryType", "operator": "EQUALS", "value": []string{queryType},
+		})
+	}
+	if isCategorySearch && len(input.Categories) > 0 {
+		filters = append(filters, map[string]any{
+			"field": "category", "operator": "IN", "value": input.Categories,
+		})
+	}
+	if isPhraseSearch && len(input.Phrases) > 0 {
+		filters = append(filters, map[string]any{
+			"field": "phrase", "operator": "IN", "value": input.Phrases,
+		})
 	}
 	payload := map[string]any{"filters": filters}
 	if !strings.EqualFold(input.Type, "TARGET_CPA") {
@@ -416,8 +461,10 @@ func searchTermPopularityPayload(input appleads.SearchTermPopularityQuery) map[s
 			{"field": "genre", "operator": "EQUALS", "value": normalizePopularityGenre(input.Genre)},
 		},
 		"timeRange": map[string]any{
-			"start": input.From, "end": input.To, "granularity": input.Granularity,
+			"start": input.From, "end": input.To, "timeZone": "UTC", "granularity": input.Granularity,
 		},
+		// SDK 1.109.0 generates Sorting.order, but the live v1 endpoint rejects
+		// that property. Omit sorting and use Apple's default rank order.
 		"pagination": map[string]any{
 			"offset": input.Offset, "pageSize": defaultInt(input.Limit, 100),
 		},
@@ -442,6 +489,9 @@ func impressionSharePayload(input appleads.ImpressionShareQuery) map[string]any 
 		"filters": filters,
 		"timeRange": map[string]any{
 			"start": input.From, "end": input.To, "timeZone": "UTC", "granularity": input.Granularity,
+		},
+		"options": map[string]any{
+			"impressionShareReportType": defaultString(input.ReportType, "ALL_SLOTS"),
 		},
 		"pagination": map[string]any{
 			"offset": input.Offset, "pageSize": defaultInt(input.Limit, 100),

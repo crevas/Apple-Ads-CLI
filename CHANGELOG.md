@@ -2,10 +2,23 @@
 
 ## Unreleased
 
+## 0.2.2
+
+- Uses Apple's official `@apple/apple-ads-platform` 1.109.0 generated models,
+  routes, and enums as the contract source for the Go Platform provider.
+- Corrects Platform campaign, ad group, keyword, negative-keyword, suggestion,
+  recommendation, insight, and change-history request payloads.
+- Adds phrase and category suggestion commands, including documented SEARCH
+  queries, and removes the undocumented keyword-recommendation command.
+- Requires explicit first-slot or all-slot impression-share report types and
+  uses UTC plus the supported Platform API granularities.
+- Documents Apple Maps, campaign-group, creative, bulk-operation, reporting,
+  and opportunity capabilities introduced by Platform API 1.0.
+
 ## 0.2.1
 
-- Adds read-only Platform API 1.0 commands for keyword suggestions; keyword,
-  target CPA, and daily-budget recommendations; search-term popularity;
+- Adds read-only Platform API 1.0 commands for keyword suggestions; target CPA
+  and daily-budget recommendations; search-term popularity;
   expanded impression share; and change history.
 - Adds pagination, date-range, country, genre, search-term, recommendation-state,
   and change-type filters with AI-friendly JSON output.

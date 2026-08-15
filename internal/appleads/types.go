@@ -202,12 +202,15 @@ type RecommendationQuery struct {
 }
 
 type SuggestionQuery struct {
-	AppID     string   `json:"appId"`
-	Type      string   `json:"type"`
-	Terms     []string `json:"terms,omitempty"`
-	Countries []string `json:"countriesOrRegions,omitempty"`
-	Limit     int      `json:"limit,omitempty"`
-	Offset    int      `json:"offset,omitempty"`
+	AppID      string   `json:"appId"`
+	Type       string   `json:"type"`
+	QueryType  string   `json:"queryType,omitempty"`
+	Terms      []string `json:"terms,omitempty"`
+	Phrases    []string `json:"phrases,omitempty"`
+	Categories []string `json:"categories,omitempty"`
+	Countries  []string `json:"countriesOrRegions,omitempty"`
+	Limit      int      `json:"limit,omitempty"`
+	Offset     int      `json:"offset,omitempty"`
 }
 
 type SearchTermPopularityQuery struct {
@@ -225,6 +228,7 @@ type ImpressionShareQuery struct {
 	From        string   `json:"from"`
 	To          string   `json:"to"`
 	Granularity string   `json:"granularity"`
+	ReportType  string   `json:"reportType"`
 	Countries   []string `json:"countriesOrRegions,omitempty"`
 	SearchTerms []string `json:"searchTerms,omitempty"`
 	Limit       int      `json:"limit"`

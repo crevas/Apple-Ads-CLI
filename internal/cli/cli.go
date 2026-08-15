@@ -18,7 +18,7 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/providers/platform"
 )
 
-const version = "0.2.1"
+const version = "0.2.2"
 
 type globalOptions struct {
 	Provider string
@@ -254,23 +254,26 @@ func runPlatform(args []string, stdout io.Writer, stderr io.Writer) int {
 			"tool":               "Apple Ads CLI by Lily",
 			"platformApiReady":   true,
 			"defaultProvider":    "campaignv5",
+			"v5RetirementDate":   "2027-01-26",
+			"platformContract":   "@apple/apple-ads-platform 1.109.0",
 			"supportedProviders": []string{"campaignv5", "platform"},
 			"compatibility": map[string]any{
 				"auth":                  "shared",
-				"v5ContextHeader":       "X-AP-Context: orgId={orgId}",
-				"platformContextHeader": "X-AP-Context: adAccountId={adAccountId}",
+				"v5ContextHeader":       "X-Ap-Context: orgId={orgId}",
+				"platformContextHeader": "X-Ap-Context: adAccountId={adAccountId};",
 				"v5ResponseField":       "data",
 				"platformResponseField": "result",
 				"businessPlanCommand":   "lily ads plan create",
 			},
 			"notes": []string{
 				"Platform provider is available behind --provider platform.",
-				"Live Platform API v1 campaign reporting and read-only opportunity queries are supported; campaignv5 remains the default during migration.",
+				"Platform API v1 is generally available. campaignv5 remains the compatibility default during migration and retires on 2027-01-26.",
 			},
 			"readOnlyOpportunityCommands": []string{
 				"suggestions keywords",
+				"suggestions phrases",
+				"suggestions categories",
 				"suggestions target-cpa",
-				"recommendations keywords",
 				"recommendations target-cpa",
 				"recommendations daily-budget",
 				"insights search-term-popularity",
@@ -416,6 +419,10 @@ func runSuggestions(ctx context.Context, args []string, globals globalOptions, s
 		output.Text(stdout,
 			"Usage:",
 			"  lily --provider platform ads suggestions keywords --app-id <adamId> [--terms term1,term2] [--countries US,GB]",
+			"  lily --provider platform ads suggestions phrases --app-id <adamId>",
+			"  lily --provider platform ads suggestions phrases --query-type search --phrases 'task manager,to do list'",
+			"  lily --provider platform ads suggestions categories --app-id <adamId>",
+			"  lily --provider platform ads suggestions categories --query-type search --categories Productivity,Business",
 			"  lily --provider platform ads suggestions target-cpa --app-id <adamId>",
 		)
 		return 0
@@ -430,9 +437,14 @@ func runSuggestions(ctx context.Context, args []string, globals globalOptions, s
 	flags.SetOutput(io.Discard)
 	var input appleads.SuggestionQuery
 	var terms string
+	var phrases string
+	var categories string
 	var countries string
 	flags.StringVar(&input.AppID, "app-id", "", "App Store adamId")
 	flags.StringVar(&terms, "terms", "", "comma-separated seed terms")
+	flags.StringVar(&phrases, "phrases", "", "comma-separated phrases for phrase SEARCH queries")
+	flags.StringVar(&categories, "categories", "", "comma-separated categories for category SEARCH queries")
+	flags.StringVar(&input.QueryType, "query-type", "SUGGESTION", "SUGGESTION or SEARCH for phrase/category queries")
 	flags.StringVar(&countries, "countries", "", "comma-separated country or region codes")
 	flags.StringVar(&countries, "country", "", "country or region code")
 	flags.IntVar(&input.Limit, "limit", 50, "max rows")
@@ -441,19 +453,55 @@ func runSuggestions(ctx context.Context, args []string, globals globalOptions, s
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
-	appID, err := normalizeAppID(input.AppID)
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 2
-	}
 	if err := validatePagination(input.Limit, input.Offset); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
-	input.AppID = appID
 	input.Type = suggestionType
-	input.Terms = splitList(terms, false)
-	input.Countries = normalizeCountries(countries)
+	input.QueryType = strings.ToUpper(strings.TrimSpace(input.QueryType))
+	if suggestionType == "PHRASE" && input.QueryType != "SUGGESTION" && input.QueryType != "SEARCH" {
+		fmt.Fprintln(stderr, "phrase suggestions require --query-type SUGGESTION or SEARCH")
+		return 2
+	}
+	if suggestionType == "CATEGORY" && input.QueryType != "SUGGESTION" && input.QueryType != "SEARCH" {
+		fmt.Fprintln(stderr, "category suggestions require --query-type SUGGESTION or SEARCH")
+		return 2
+	}
+	if suggestionType != "PHRASE" && suggestionType != "CATEGORY" {
+		input.QueryType = ""
+	}
+	if suggestionType == "PHRASE" && input.QueryType == "SEARCH" {
+		input.Phrases = splitList(phrases, false)
+		if len(input.Phrases) == 0 {
+			fmt.Fprintln(stderr, "--phrases is required for phrase SEARCH queries")
+			return 2
+		}
+	} else if suggestionType == "CATEGORY" && input.QueryType == "SEARCH" {
+		input.Categories = splitList(categories, false)
+		if len(input.Categories) == 0 {
+			fmt.Fprintln(stderr, "--categories is required for category SEARCH queries")
+			return 2
+		}
+		if strings.TrimSpace(input.AppID) != "" {
+			appID, err := normalizeAppID(input.AppID)
+			if err != nil {
+				fmt.Fprintln(stderr, err)
+				return 2
+			}
+			input.AppID = appID
+		}
+	} else {
+		appID, err := normalizeAppID(input.AppID)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		input.AppID = appID
+	}
+	if suggestionType == "KEYWORD" {
+		input.Terms = splitList(terms, false)
+		input.Countries = normalizeCountries(countries)
+	}
 
 	return executeOpportunityQuery(ctx, globals, stdout, stderr, "suggestions."+strings.ToLower(suggestionType), input,
 		func(provider appleads.OpportunityProvider, client appleads.RequestContext) (appleads.RawResponse, error) {
@@ -465,10 +513,9 @@ func runRecommendations(ctx context.Context, args []string, globals globalOption
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
 		output.Text(stdout,
 			"Usage:",
-			"  lily --provider platform ads recommendations keywords --app-id <adamId> [--state AVAILABLE]",
 			"  lily --provider platform ads recommendations target-cpa --app-id <adamId> [--state AVAILABLE]",
 			"  lily --provider platform ads recommendations daily-budget --app-id <adamId> [--state AVAILABLE]",
-			"  lily --provider platform ads recommendations query --type keyword|target-cpa|daily-budget --app-id <adamId>",
+			"  lily --provider platform ads recommendations query --type target-cpa|daily-budget --app-id <adamId>",
 		)
 		return 0
 	}
@@ -484,7 +531,7 @@ func runRecommendations(ctx context.Context, args []string, globals globalOption
 	var input appleads.RecommendationQuery
 	var typeFlag string
 	flags.StringVar(&input.AppID, "app-id", "", "App Store adamId")
-	flags.StringVar(&typeFlag, "type", "", "keyword, target-cpa, or daily-budget")
+	flags.StringVar(&typeFlag, "type", "", "target-cpa or daily-budget")
 	flags.StringVar(&input.State, "state", "AVAILABLE", "AVAILABLE, APPLIED, DISMISSED, or ALL")
 	flags.IntVar(&input.Limit, "limit", 50, "max rows")
 	flags.IntVar(&input.Offset, "offset", 0, "pagination offset")
@@ -497,7 +544,7 @@ func runRecommendations(ctx context.Context, args []string, globals globalOption
 	}
 	recommendationType, ok := normalizeRecommendationType(command)
 	if !ok {
-		fmt.Fprintf(stderr, "unsupported recommendation type %q; use keyword, target-cpa, or daily-budget\n", command)
+		fmt.Fprintf(stderr, "unsupported recommendation type %q; use target-cpa or daily-budget\n", command)
 		return 2
 	}
 	appID, err := normalizeAppID(input.AppID)
@@ -531,7 +578,7 @@ func runInsights(ctx context.Context, args []string, globals globalOptions, stdo
 		output.Text(stdout,
 			"Usage:",
 			"  lily --provider platform ads insights search-term-popularity --country US --genre 'Photo & Video' [--granularity weekly|monthly]",
-			"  lily --provider platform ads insights impression-share --app-id <adamId> [--countries US,GB] [--search-terms term1,term2]",
+			"  lily --provider platform ads insights impression-share --app-id <adamId> [--report-type all-slots|first-slot] [--countries US,GB] [--search-terms term1,term2]",
 		)
 		return 0
 	}
@@ -604,7 +651,8 @@ func runImpressionShare(ctx context.Context, args []string, globals globalOption
 	flags.StringVar(&input.AppID, "app-id", "", "App Store adamId")
 	flags.StringVar(&input.From, "from", "", "start date YYYY-MM-DD")
 	flags.StringVar(&input.To, "to", "", "end date YYYY-MM-DD")
-	flags.StringVar(&input.Granularity, "granularity", "DAILY", "daily, weekly, or monthly")
+	flags.StringVar(&input.Granularity, "granularity", "DAILY", "daily or weekly-sun-sat")
+	flags.StringVar(&input.ReportType, "report-type", "ALL_SLOTS", "ALL_SLOTS or FIRST_SLOT")
 	flags.StringVar(&countries, "countries", "", "comma-separated country or region codes")
 	flags.StringVar(&countries, "country", "", "country or region code")
 	flags.StringVar(&searchTerms, "search-terms", "", "comma-separated search terms")
@@ -620,12 +668,21 @@ func runImpressionShare(ctx context.Context, args []string, globals globalOption
 		return 2
 	}
 	input.AppID = appID
-	input.Granularity = normalizeReportGranularity(input.Granularity)
+	input.Granularity = normalizeImpressionShareGranularity(input.Granularity)
 	if input.Granularity == "" {
-		fmt.Fprintln(stderr, "--granularity must be daily, weekly, or monthly")
+		fmt.Fprintln(stderr, "--granularity must be daily or weekly-sun-sat")
 		return 2
 	}
-	input.From, input.To = defaultCompletedDateRange(input.From, input.To, 7, time.Now().UTC())
+	input.ReportType = normalizeImpressionShareReportType(input.ReportType)
+	if input.ReportType == "" {
+		fmt.Fprintln(stderr, "--report-type must be ALL_SLOTS or FIRST_SLOT")
+		return 2
+	}
+	if input.Granularity == "WEEKLY_SUN_SAT" {
+		input.From, input.To = defaultPopularityRange(input.From, input.To, input.Granularity, time.Now().UTC())
+	} else {
+		input.From, input.To = defaultCompletedDateRange(input.From, input.To, 7, time.Now().UTC())
+	}
 	if err := validateDateRange(input.From, input.To); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
@@ -759,7 +816,6 @@ func printReserved(stdout io.Writer, stderr io.Writer, feature string, request m
 		"requested": request,
 		"message":   "Read-only Platform API recommendation queries are supported. Applying or dismissing recommendations is not enabled until the write contract is verified.",
 		"supportedCommands": []string{
-			"lily --provider platform ads recommendations keywords --app-id <adamId>",
 			"lily --provider platform ads recommendations target-cpa --app-id <adamId>",
 			"lily --provider platform ads recommendations daily-budget --app-id <adamId>",
 		},
@@ -770,6 +826,10 @@ func normalizeSuggestionType(value string) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "keyword", "keywords":
 		return "KEYWORD", true
+	case "phrase", "phrases":
+		return "PHRASE", true
+	case "category", "categories":
+		return "CATEGORY", true
 	case "cpa", "target-cpa", "target-cpas":
 		return "TARGET_CPA", true
 	default:
@@ -779,8 +839,6 @@ func normalizeSuggestionType(value string) (string, bool) {
 
 func normalizeRecommendationType(value string) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "keyword", "keywords":
-		return "KEYWORD", true
 	case "cpa", "target-cpa", "target-cpas":
 		return "TARGET_CPA", true
 	case "budget", "daily-budget", "daily-budgets":
@@ -873,6 +931,28 @@ func normalizeReportGranularity(value string) string {
 		return "WEEKLY"
 	case "MONTH", "MONTHLY":
 		return "MONTHLY"
+	default:
+		return ""
+	}
+}
+
+func normalizeImpressionShareGranularity(value string) string {
+	switch strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(value), "-", "_")) {
+	case "DAY", "DAILY":
+		return "DAILY"
+	case "WEEK", "WEEKLY", "WEEKLY_SUN_SAT":
+		return "WEEKLY_SUN_SAT"
+	default:
+		return ""
+	}
+}
+
+func normalizeImpressionShareReportType(value string) string {
+	switch strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(value), "-", "_")) {
+	case "ALL", "ALL_SLOT", "ALL_SLOTS":
+		return "ALL_SLOTS"
+	case "FIRST", "FIRST_SLOT":
+		return "FIRST_SLOT"
 	default:
 		return ""
 	}
@@ -1049,9 +1129,9 @@ func buildProvider(ctx context.Context, cfg config.Config, verbose bool, logWrit
 		baseURL = cfg.CampaignV5Base
 		contextHeader = "orgId=" + cfg.OrgID
 	case "platform":
-		provider = platform.New()
+		provider = platform.New(cfg.AdAccountID)
 		baseURL = cfg.PlatformBase
-		contextHeader = "adAccountId=" + cfg.AdAccountID
+		contextHeader = "adAccountId=" + cfg.AdAccountID + ";"
 	default:
 		return nil, nil, fmt.Errorf("unsupported provider %q", cfg.Provider)
 	}
@@ -1183,8 +1263,10 @@ func printHelp(w io.Writer) {
 		"  lily ads reports campaigns [flags]",
 		"  lily ads revenue summary [flags]",
 		"  lily --provider platform ads suggestions keywords --app-id <adamId>",
+		"  lily --provider platform ads suggestions phrases --app-id <adamId>",
+		"  lily --provider platform ads suggestions categories --app-id <adamId>",
 		"  lily --provider platform ads suggestions target-cpa --app-id <adamId>",
-		"  lily --provider platform ads recommendations <keywords|target-cpa|daily-budget> --app-id <adamId>",
+		"  lily --provider platform ads recommendations <target-cpa|daily-budget> --app-id <adamId>",
 		"  lily --provider platform ads insights <search-term-popularity|impression-share> [flags]",
 		"  lily --provider platform ads change-history <query|detail> [flags]",
 		"",
@@ -1209,8 +1291,10 @@ func printAdsHelp(w io.Writer) {
 		"  lily ads reports campaigns [flags]",
 		"  lily ads revenue summary [flags]",
 		"  lily --provider platform ads suggestions keywords --app-id <adamId>",
+		"  lily --provider platform ads suggestions phrases --app-id <adamId>",
+		"  lily --provider platform ads suggestions categories --app-id <adamId>",
 		"  lily --provider platform ads suggestions target-cpa --app-id <adamId>",
-		"  lily --provider platform ads recommendations <keywords|target-cpa|daily-budget> --app-id <adamId>",
+		"  lily --provider platform ads recommendations <target-cpa|daily-budget> --app-id <adamId>",
 		"  lily --provider platform ads insights <search-term-popularity|impression-share> [flags]",
 		"  lily --provider platform ads change-history <query|detail> [flags]",
 		"",

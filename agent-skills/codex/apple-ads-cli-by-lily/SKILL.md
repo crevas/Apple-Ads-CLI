@@ -99,8 +99,11 @@ Use `--provider platform` for Platform API 1.0 opportunity queries. These
 commands are read-only and do not need write confirmation:
 
 - `lily --provider platform ads suggestions keywords --app-id <adamId>`
+- `lily --provider platform ads suggestions phrases --app-id <adamId>`
+- `lily --provider platform ads suggestions phrases --query-type search --phrases <phrase1,phrase2>`
+- `lily --provider platform ads suggestions categories --app-id <adamId>`
+- `lily --provider platform ads suggestions categories --query-type search --categories <category1,category2>`
 - `lily --provider platform ads suggestions target-cpa --app-id <adamId>`
-- `lily --provider platform ads recommendations keywords --app-id <adamId>`
 - `lily --provider platform ads recommendations target-cpa --app-id <adamId>`
 - `lily --provider platform ads recommendations daily-budget --app-id <adamId>`
 - `lily --provider platform ads insights search-term-popularity --country <CC> --genre <genre>`

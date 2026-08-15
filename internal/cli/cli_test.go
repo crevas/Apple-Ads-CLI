@@ -249,6 +249,8 @@ func TestOpportunityTypeAliases(t *testing.T) {
 		want  string
 	}{
 		{"keywords", "KEYWORD"},
+		{"phrases", "PHRASE"},
+		{"categories", "CATEGORY"},
 		{"target-cpa", "TARGET_CPA"},
 	} {
 		got, ok := normalizeSuggestionType(test.input)
@@ -258,6 +260,15 @@ func TestOpportunityTypeAliases(t *testing.T) {
 	}
 	if got, ok := normalizeRecommendationType("daily-budget"); !ok || got != "DAILY_BUDGET" {
 		t.Fatalf("normalizeRecommendationType(daily-budget) = %q, %v", got, ok)
+	}
+	if got, ok := normalizeRecommendationType("keywords"); ok || got != "" {
+		t.Fatalf("normalizeRecommendationType(keywords) = %q, %v; want unsupported", got, ok)
+	}
+	if got := normalizeImpressionShareGranularity("weekly-sun-sat"); got != "WEEKLY_SUN_SAT" {
+		t.Fatalf("normalizeImpressionShareGranularity = %q", got)
+	}
+	if got := normalizeImpressionShareReportType("first-slot"); got != "FIRST_SLOT" {
+		t.Fatalf("normalizeImpressionShareReportType = %q", got)
 	}
 }
 
