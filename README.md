@@ -1,6 +1,6 @@
 # Apple Ads CLI by Lily
 
-> **Apple Ads Platform API 1.0 is supported in Lily 0.2.0.** (2026-08-15) Use the
+> **Apple Ads Platform API 1.0 is supported in Lily 0.2.0.** (2026-08-14) Use the
 > `platform` provider for Platform API campaign workflows and live campaign
 > reporting. Authenticated reporting has been verified against Apple's v1
 > endpoint. Lily 0.2.2 aligns v1 request models, routes, and enums with Apple's
