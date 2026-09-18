@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.2.3
+
+- Fixes search-term popularity HTTP 400 errors for `Productivity` and
+  `Utilities` by mapping both to Apple's `PRODUCTIVITY_UTILITIES` genre.
+- Accepts full App Store genre paths such as
+  `>Mobile Software Applications>Productivity`, preserving canonical genre values.
+- Adds regression coverage for combined genres, category paths, casing,
+  whitespace, and existing category normalization.
+
 ## 0.2.2
 
 - Uses Apple's official `@apple/apple-ads-platform` 1.109.0 generated models,

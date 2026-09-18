@@ -5,6 +5,8 @@
 > reporting. Authenticated reporting has been verified against Apple's v1
 > endpoint. Lily 0.2.2 aligns v1 request models, routes, and enums with Apple's
 > official open-source Node SDK while retaining the classic v5 provider.
+> Lily 0.2.3 fixes search-term popularity queries for Productivity and Utilities
+> and accepts full App Store category paths.
 
 Apple Ads CLI by Lily is an open-source, AI-friendly, business-first command
 line tool for planning Apple Ads campaign packages, reviewing AI-agent generated
@@ -37,7 +39,7 @@ post-install revenue. Apple can estimate installs, spend, and CPA; RevenueCat or
 AppsFlyer can show whether the acquired users produce enough revenue and ROAS to
 justify scaling.
 
-Lily CLI 0.2.2 turns the supported opportunity signals into read-only commands while
+Lily CLI 0.2.3 turns the supported opportunity signals into read-only commands while
 retaining Platform campaign workflows, authenticated live reporting, and the
 classic v5 provider. Querying an opportunity never applies or dismisses it.
 
@@ -130,6 +132,11 @@ lily --provider platform ads recommendations target-cpa \
 lily --provider platform ads insights search-term-popularity \
   --country US --genre Travel
 ```
+
+For search-term popularity, `--genre Productivity` and `--genre Utilities` both
+query Apple's combined `PRODUCTIVITY_UTILITIES` category. Canonical values and
+full App Store paths such as `>Mobile Software Applications>Productivity` are
+also accepted.
 
 Ask Lily to recommend a review-only campaign draft when an agent or operator
 has the business intent but not every bid, budget, or keyword ready yet:

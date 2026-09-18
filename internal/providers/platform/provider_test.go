@@ -145,26 +145,43 @@ func TestSuggestionsCoverKeywordsAndTargetCPA(t *testing.T) {
 }
 
 func TestSearchTermPopularityNormalizesGenre(t *testing.T) {
-	ctx := &recordingContext{}
-	_, err := New().QuerySearchTermPopularity(ctx, appleads.SearchTermPopularityQuery{
-		Country: "US", Genre: "Photo & Video", From: "2026-08-02", To: "2026-08-08", Granularity: "WEEKLY_SUN_SAT", Limit: 50,
-	})
-	if err != nil {
-		t.Fatalf("QuerySearchTermPopularity returned error: %v", err)
-	}
-	if ctx.path != "/insights/apps/search-term-popularity/query" {
-		t.Fatalf("path = %q, want search-term popularity path", ctx.path)
-	}
-	payload := ctx.body.(map[string]any)
-	filters := payload["filters"].([]map[string]any)
-	if filters[1]["value"] != "PHOTO_VIDEO" {
-		t.Fatalf("genre = %v, want PHOTO_VIDEO", filters[1]["value"])
-	}
-	assertJSONEqual(t, payload["timeRange"], map[string]any{
-		"start": "2026-08-02", "end": "2026-08-08", "timeZone": "UTC", "granularity": "WEEKLY_SUN_SAT",
-	})
-	if _, ok := payload["sorting"]; ok {
-		t.Fatal("search-term popularity omits sorting because the live v1 endpoint rejects the SDK 1.109.0 Sorting.order field")
+	for _, tc := range []struct {
+		genre string
+		want  string
+	}{
+		{"Photo & Video", "PHOTO_VIDEO"},
+		{"Health & Fitness", "HEALTH_FITNESS"},
+		{"Productivity", "PRODUCTIVITY_UTILITIES"},
+		{"Utilities", "PRODUCTIVITY_UTILITIES"},
+		{" productivity ", "PRODUCTIVITY_UTILITIES"},
+		{">Mobile Software Applications>Productivity", "PRODUCTIVITY_UTILITIES"},
+		{">Mobile Software Applications>Utilities", "PRODUCTIVITY_UTILITIES"},
+		{"PRODUCTIVITY_UTILITIES", "PRODUCTIVITY_UTILITIES"},
+		{">Mobile Software Applications>Education", "EDUCATION"},
+	} {
+		t.Run(tc.genre, func(t *testing.T) {
+			ctx := &recordingContext{}
+			_, err := New().QuerySearchTermPopularity(ctx, appleads.SearchTermPopularityQuery{
+				Country: "US", Genre: tc.genre, From: "2026-08-02", To: "2026-08-08", Granularity: "WEEKLY_SUN_SAT", Limit: 50,
+			})
+			if err != nil {
+				t.Fatalf("QuerySearchTermPopularity returned error: %v", err)
+			}
+			if ctx.path != "/insights/apps/search-term-popularity/query" {
+				t.Fatalf("path = %q, want search-term popularity path", ctx.path)
+			}
+			payload := ctx.body.(map[string]any)
+			filters := payload["filters"].([]map[string]any)
+			if filters[1]["value"] != tc.want {
+				t.Fatalf("genre = %v, want %s", filters[1]["value"], tc.want)
+			}
+			assertJSONEqual(t, payload["timeRange"], map[string]any{
+				"start": "2026-08-02", "end": "2026-08-08", "timeZone": "UTC", "granularity": "WEEKLY_SUN_SAT",
+			})
+			if _, ok := payload["sorting"]; ok {
+				t.Fatal("search-term popularity omits sorting because the live v1 endpoint rejects the SDK 1.109.0 Sorting.order field")
+			}
+		})
 	}
 }
 

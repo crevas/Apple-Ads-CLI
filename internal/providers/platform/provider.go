@@ -525,6 +525,9 @@ func changeHistoryPayload(input appleads.ChangeHistoryQuery) map[string]any {
 }
 
 func normalizePopularityGenre(value string) string {
+	if separator := strings.LastIndex(value, ">"); separator >= 0 {
+		value = value[separator+1:]
+	}
 	value = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(value), "&", " "))
 	var out strings.Builder
 	underscore := false
@@ -539,7 +542,14 @@ func normalizePopularityGenre(value string) string {
 			underscore = true
 		}
 	}
-	return strings.Trim(out.String(), "_")
+	normalized := strings.Trim(out.String(), "_")
+	// App Store has separate categories; Search Term Popularity combines them.
+	switch normalized {
+	case "PRODUCTIVITY", "UTILITIES":
+		return "PRODUCTIVITY_UTILITIES"
+	default:
+		return normalized
+	}
 }
 
 func defaultString(value string, fallback string) string {
