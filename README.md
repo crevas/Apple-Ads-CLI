@@ -319,9 +319,11 @@ select Platform API 1.0 explicitly with
 
 Apple publishes official Node, Python, Java, and Swift clients, but not a Go
 client. The CLI therefore keeps its small Go HTTP provider and treats
-`@apple/apple-ads-platform` 1.109.0 as the generated contract source for v1
-models, endpoint paths, enums, and regression tests. Apple's announced
-retirement date for Campaign Management API v5 is January 26, 2027.
+`@apple/apple-ads-platform` 1.117.0 as the generated contract source for v1
+models, endpoint paths, enums, and regression tests. See the
+[SDK contract review](docs/apple-sdk-contract.md) for the upgrade assessment.
+Apple's announced retirement date for Campaign Management API v5 is
+January 26, 2027.
 
 Known compatibility differences handled by the providers:
 

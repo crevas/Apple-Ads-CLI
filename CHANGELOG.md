@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Updates the reviewed Apple Ads SDK contract from 1.109.0 to 1.117.0 after
+  checking the published request models, routes, enums, and response changes.
+  Existing Platform commands require no request changes; live compatibility
+  workarounds remain in place.
+- Reads the Platform readiness contract version from the embedded version pin
+  so CLI diagnostics and the scheduled SDK check use the same source.
+
 ## 0.2.3
 
 - Fixes search-term popularity HTTP 400 errors for `Productivity` and

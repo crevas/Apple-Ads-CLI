@@ -255,7 +255,7 @@ func runPlatform(args []string, stdout io.Writer, stderr io.Writer) int {
 			"platformApiReady":   true,
 			"defaultProvider":    "campaignv5",
 			"v5RetirementDate":   "2027-01-26",
-			"platformContract":   "@apple/apple-ads-platform 1.109.0",
+			"platformContract":   "@apple/apple-ads-platform " + platform.SDKContractVersion(),
 			"supportedProviders": []string{"campaignv5", "platform"},
 			"compatibility": map[string]any{
 				"auth":                  "shared",

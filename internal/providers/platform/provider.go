@@ -1,6 +1,7 @@
 package platform
 
 import (
+	_ "embed"
 	"fmt"
 	"net/url"
 	"strings"
@@ -9,11 +10,19 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/appleads"
 )
 
-// Contract source: @apple/apple-ads-platform 1.109.0, pinned in
+// Contract source: @apple/apple-ads-platform, pinned in
 // apple_sdk_contract_version.txt. Apple does not publish a Go client, so this
 // provider mirrors the generated request models and routes.
 type Provider struct {
 	AdAccountID string
+}
+
+//go:embed apple_sdk_contract_version.txt
+var sdkContractVersion string
+
+// SDKContractVersion returns the reviewed Apple SDK version used by this build.
+func SDKContractVersion() string {
+	return strings.TrimSpace(sdkContractVersion)
 }
 
 func New(adAccountID ...string) Provider {
@@ -464,8 +473,9 @@ func searchTermPopularityPayload(input appleads.SearchTermPopularityQuery) map[s
 		"timeRange": map[string]any{
 			"start": input.From, "end": input.To, "timeZone": "UTC", "granularity": input.Granularity,
 		},
-		// SDK 1.109.0 generates Sorting.order, but the live v1 endpoint rejects
-		// that property. Omit sorting and use Apple's default rank order.
+		// Sorting.order was rejected by the live v1 endpoint when verified
+		// against SDK 1.109.0. The model is unchanged in 1.117.0; retain Apple's
+		// default rank order until the endpoint is reverified.
 		"pagination": map[string]any{
 			"offset": input.Offset, "pageSize": defaultInt(input.Limit, 100),
 		},
