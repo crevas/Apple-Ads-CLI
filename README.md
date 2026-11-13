@@ -1,12 +1,11 @@
 # Apple Ads CLI by Lily
 
-> **Apple Ads Platform API 1.0 is supported in Lily 0.2.0.** (2026-08-14) Use the
-> `platform` provider for Platform API campaign workflows and live campaign
-> reporting. Authenticated reporting has been verified against Apple's v1
-> endpoint. Lily 0.2.2 aligns v1 request models, routes, and enums with Apple's
-> official open-source Node SDK while retaining the classic v5 provider.
-> Lily 0.2.3 fixes search-term popularity queries for Productivity and Utilities
-> and accepts full App Store category paths.
+> **Lily 0.3.0 defaults to Apple Ads Platform API v1 (`platform`).**
+> (2026-11-13) Explicit `campaignv5` configuration remains supported. Set
+> `APPLE_ADS_AD_ACCOUNT_ID` before live requests. See the
+> [v1 migration and compatibility audit](docs/v1-default-migration.md).
+> Upgrading from 0.2.3: explicit v5 settings are preserved; unconfigured installs
+> now use v1.
 
 Apple Ads CLI by Lily is an open-source, AI-friendly, business-first command
 line tool for planning Apple Ads campaign packages, reviewing AI-agent generated
@@ -175,7 +174,7 @@ Dry-run responses include `review` and `confirmation` objects so AI agents can
 show a business summary and ask the user to confirm, modify, or cancel.
 Writes require explicit budget, bid, and keywords.
 
-Use the same business command with the Platform API 1.0 provider:
+The same business command can explicitly select Platform API v1:
 
 ```sh
 lily --provider platform ads plan create \
@@ -193,20 +192,38 @@ lily --provider platform ads plan create \
 Environment variables:
 
 ```sh
-export APPLE_ADS_PROVIDER=campaignv5
 export APPLE_ADS_CLIENT_ID=...
 export APPLE_ADS_TEAM_ID=...
 export APPLE_ADS_KEY_ID=...
-export APPLE_ADS_ORG_ID=...
+export APPLE_ADS_AD_ACCOUNT_ID=...
 export APPLE_ADS_PRIVATE_KEY_PATH=/path/to/AuthKey.p8
 ```
 
-For the Platform API 1.0 provider:
+Platform API v1 is the default when no provider is configured. An explicit
+provider in the config file or environment is preserved. Override it per command
+with `--provider platform` (or `--provider v1`). The ad account ID must be verified;
+the CLI never assumes it is the legacy organization ID.
+
+For legacy v5 access:
 
 ```sh
-export APPLE_ADS_PROVIDER=platform
-export APPLE_ADS_AD_ACCOUNT_ID=...
+export APPLE_ADS_PROVIDER=campaignv5
+export APPLE_ADS_ORG_ID=...
 ```
+
+Provider precedence: command flag → `APPLE_ADS_PROVIDER` → `LILY_ADS_PROVIDER`
+→ config file → `platform`.
+
+When creating a v1 plan with `--cpa-goal`, the CLI verifies the saved ad group
+CPA Goal after creation. If v1 omits `cpaCap`, an explicitly configured
+`APPLE_ADS_ORG_ID` permits a read-only v5 compatibility check. Missing values,
+unavailable reads, wrong identities, or mismatched amounts/currencies return a
+nonzero exit code with created IDs and `cpaGoalVerification` in JSON. Inspect
+those resources before retrying; creation is not atomic. `--cpa-goal` keeps manual
+CPT bidding and does not enable campaign Target CPA.
+
+CNY Money inputs are normalized to RMB without changing amounts or names. Bulk
+item failures also return a nonzero exit code and preserve the item results.
 
 Optional:
 
@@ -313,9 +330,9 @@ platform   -> https://api.ads.apple.com/v1
 Lily 0.2.0 introduced Apple Ads Platform API 1.0 campaign workflows and
 authenticated live campaign reporting. Lily 0.2.2 aligns requests with Apple's
 official open-source Node SDK contract and completes the documented read-only
-opportunity and insight queries. `campaignv5` remains the default provider during migration;
-select Platform API 1.0 explicitly with
-`--provider platform` or `APPLE_ADS_PROVIDER=platform`.
+opportunity and insight queries. Lily 0.3.0 defaults to `platform`;
+explicit `campaignv5` settings remain available for legacy compatibility.
+See the [migration guide](docs/v1-default-migration.md) for existing installations.
 
 Apple publishes official Node, Python, Java, and Swift clients, but not a Go
 client. The CLI therefore keeps its small Go HTTP provider and treats

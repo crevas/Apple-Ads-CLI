@@ -4,8 +4,48 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestDefaultProviderAndExplicitOverrides(t *testing.T) {
+	for _, tc := range []struct{ name, file, env, alias, want string }{
+		{"new config", "", "", "", "platform"},
+		{"old config without provider", "", "", "", "platform"},
+		{"explicit v5 file", "campaignv5", "", "", "campaignv5"},
+		{"environment overrides file", "campaignv5", "v1", "", "platform"},
+		{"explicit v5 environment", "platform", "v5", "", "campaignv5"},
+		{"legacy environment alias", "platform", "", "v5", "campaignv5"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("LILY_ADS_CONFIG", filepath.Join(t.TempDir(), "config.json"))
+			t.Setenv("APPLE_ADS_PROVIDER", tc.env)
+			t.Setenv("LILY_ADS_PROVIDER", tc.alias)
+			if tc.name != "new config" {
+				if err := Save(Config{Provider: tc.file, OrgID: "123"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := Load().Provider; got != tc.want {
+				t.Fatalf("provider = %q, want %q", got, tc.want)
+			}
+		})
+	}
+	if NormalizeProvider("") != "platform" || NormalizeProvider(" V1 ") != "platform" {
+		t.Fatal("default and v1 alias must select platform")
+	}
+}
+
+func TestV1NeverUsesLegacyOrgAsAdAccountID(t *testing.T) {
+	cfg := Config{OrgID: "123"}
+	if err := cfg.ValidateProviderScope(); err == nil || !strings.Contains(err.Error(), "APPLE_ADS_AD_ACCOUNT_ID") || !strings.Contains(err.Error(), "--provider campaignv5") {
+		t.Fatalf("missing v1 account must explain migration: %v", err)
+	}
+	cfg.Provider = "v5"
+	if err := cfg.ValidateProviderScope(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestSaveLilyTokenDoesNotPersistAppleAdsEnvironment(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "apple-ads.json")

@@ -163,13 +163,17 @@ func (Provider) QueryCampaignReport(ctx appleads.RequestContext, input appleads.
 }
 
 func (p Provider) campaignPayload(input appleads.CampaignCreate) map[string]any {
+	supply := defaultString(input.Supply, "APPSTORE_SEARCH_RESULTS")
+	if supply == "APPSTORE_PRODUCT_PAGES" {
+		supply = "APPSTORE_PRODUCT_PAGES_BROWSE"
+	}
 	return map[string]any{
 		"name":               input.Name,
 		"orgId":              parseIDOrString(p.OrgID),
 		"adamId":             parseIDOrString(input.AppID),
 		"countriesOrRegions": input.Countries,
-		"dailyBudgetAmount":  appleads.Money{Amount: input.DailyBudget, Currency: input.Currency},
-		"supplySources":      []string{defaultString(input.Supply, "APPSTORE_SEARCH_RESULTS")},
+		"dailyBudgetAmount":  appleads.Money{Amount: input.DailyBudget, Currency: appleads.NormalizeCurrency(input.Currency)},
+		"supplySources":      []string{supply},
 		"adChannelType":      "SEARCH",
 		"billingEvent":       "TAPS",
 		"status":             defaultString(input.Status, "ENABLED"),
@@ -179,7 +183,7 @@ func (p Provider) campaignPayload(input appleads.CampaignCreate) map[string]any 
 func adGroupPayload(input appleads.AdGroupCreate) map[string]any {
 	payload := map[string]any{
 		"name":                   input.Name,
-		"defaultBidAmount":       appleads.Money{Amount: input.Bid, Currency: input.Currency},
+		"defaultBidAmount":       appleads.Money{Amount: input.Bid, Currency: appleads.NormalizeCurrency(input.Currency)},
 		"pricingModel":           "CPC",
 		"automatedKeywordsOptIn": false,
 		"status":                 defaultString(input.Status, "ENABLED"),
@@ -191,7 +195,7 @@ func adGroupPayload(input appleads.AdGroupCreate) map[string]any {
 		payload["endTime"] = input.EndTime
 	}
 	if input.CPAGoal != "" {
-		payload["cpaGoal"] = appleads.Money{Amount: input.CPAGoal, Currency: input.Currency}
+		payload["cpaGoal"] = appleads.Money{Amount: input.CPAGoal, Currency: appleads.NormalizeCurrency(input.Currency)}
 	}
 	return payload
 }
@@ -201,7 +205,7 @@ func keywordPayload(input appleads.KeywordCreate) map[string]any {
 		"text":      input.Text,
 		"matchType": input.MatchType,
 		"status":    legacyKeywordStatus(input.Status),
-		"bidAmount": appleads.Money{Amount: input.Bid, Currency: input.Currency},
+		"bidAmount": appleads.Money{Amount: input.Bid, Currency: appleads.NormalizeCurrency(input.Currency)},
 	}
 }
 

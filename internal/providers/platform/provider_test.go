@@ -259,6 +259,52 @@ func TestCampaignAndBulkPayloadsMatchAppleSDKModels(t *testing.T) {
 	})
 }
 
+func TestCampaignPlacementAndMoneyCompatibility(t *testing.T) {
+	for _, supply := range []string{"APPSTORE_SEARCH_RESULTS", "APPSTORE_SEARCH_TAB", "APPSTORE_TODAY_TAB", "APPSTORE_PRODUCT_PAGES", "APPSTORE_PRODUCT_PAGES_BROWSE"} {
+		t.Run(supply, func(t *testing.T) {
+			payload := New("321").campaignPayload(appleads.CampaignCreate{Supply: supply, Currency: " cny ", DailyBudget: "200"})
+			want := supply
+			if supply == "APPSTORE_PRODUCT_PAGES_BROWSE" {
+				want = "APPSTORE_PRODUCT_PAGES"
+			}
+			targeting := payload["targeting"].(map[string]any)
+			assertJSONEqual(t, targeting["supplySource"], map[string]any{"include": []string{"APPSTORE"}})
+			assertJSONEqual(t, targeting["supplyPlacement"], map[string]any{"include": []string{want}})
+			assertJSONEqual(t, payload["dailyBudget"], map[string]any{"value": appleads.Money{Amount: "200", Currency: "RMB"}})
+		})
+	}
+}
+
+type bulkContext struct{ response appleads.RawResponse }
+
+func (c bulkContext) Do(string, string, any) (appleads.RawResponse, error) { return c.response, nil }
+
+func TestBulkResultsMustConfirmEveryItem(t *testing.T) {
+	success := map[string]any{"success": true, "correlationId": float64(1), "result": map[string]any{"id": float64(88)}}
+	for _, tc := range []struct {
+		name      string
+		items     any
+		count     int
+		wantError bool
+	}{
+		{"confirmed", []any{success}, 1, false},
+		{"missing results", nil, 1, true},
+		{"missing item", []any{success}, 2, true},
+		{"duplicate results", []any{success, success}, 2, true},
+		{"item failure", []any{map[string]any{"correlationId": 1, "success": false, "error": map[string]any{"message": "invalid"}}}, 1, true},
+		{"missing ID", []any{map[string]any{"correlationId": 1, "success": true}}, 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			response := appleads.RawResponse{"result": tc.items}
+			got, err := bulkCreate(bulkContext{response}, "/keywords/bulk-create", nil, tc.count)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("error = %v", err)
+			}
+			assertJSONEqual(t, got, response)
+		})
+	}
+}
+
 func TestChangeHistoryQueryAndDetailContracts(t *testing.T) {
 	ctx := &recordingContext{}
 	_, err := New().QueryChangeHistory(ctx, appleads.ChangeHistoryQuery{

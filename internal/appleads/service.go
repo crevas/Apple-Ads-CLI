@@ -29,6 +29,9 @@ func (s PlanService) Create(input PlanCreateInput) (PlanCreateResult, error) {
 		Confirmation:   buildPlanConfirmation(),
 		SafetyReminder: "Write operations are dry-run by default. Execute only after explicit user approval.",
 	}
+	if _, ok := s.Provider.(CPAGoalVerifier); ok && normalized.CPAGoal != "" {
+		result.Assumptions = append(result.Assumptions, "CPA Goal will be verified after creation. If v1 omits cpaCap, read-only v5 verification requires an explicitly configured APPLE_ADS_ORG_ID; failed verification returns created IDs and a nonzero exit code.")
+	}
 
 	if !normalized.Execute {
 		return result, nil
@@ -88,10 +91,12 @@ func (s PlanService) Create(input PlanCreateInput) (PlanCreateResult, error) {
 		})
 	}
 	keywordResp, err := s.Provider.BulkCreateKeywords(s.Client, keywords, normalized.AllowPartial)
+	if keywordResp != nil {
+		result.Executed = append(result.Executed, ExecutedStep{Step: "bulk_create_keywords", Response: keywordResp})
+	}
 	if err != nil {
 		return result, fmt.Errorf("bulk create keywords: %w", err)
 	}
-	result.Executed = append(result.Executed, ExecutedStep{Step: "bulk_create_keywords", Response: keywordResp})
 
 	if len(normalized.CampaignNegativeKeywords) > 0 {
 		negatives := make([]NegativeKeywordCreate, 0, len(normalized.CampaignNegativeKeywords))
@@ -104,10 +109,12 @@ func (s PlanService) Create(input PlanCreateInput) (PlanCreateResult, error) {
 			})
 		}
 		negativeResp, err := s.Provider.BulkCreateNegativeKeywords(s.Client, negatives, normalized.AllowPartial)
+		if negativeResp != nil {
+			result.Executed = append(result.Executed, ExecutedStep{Step: "bulk_create_campaign_negative_keywords", Response: negativeResp})
+		}
 		if err != nil {
 			return result, fmt.Errorf("bulk create campaign negative keywords: %w", err)
 		}
-		result.Executed = append(result.Executed, ExecutedStep{Step: "bulk_create_campaign_negative_keywords", Response: negativeResp})
 	}
 
 	if len(normalized.AdGroupNegativeKeywords) > 0 {
@@ -122,10 +129,12 @@ func (s PlanService) Create(input PlanCreateInput) (PlanCreateResult, error) {
 			})
 		}
 		negativeResp, err := s.Provider.BulkCreateNegativeKeywords(s.Client, negatives, normalized.AllowPartial)
+		if negativeResp != nil {
+			result.Executed = append(result.Executed, ExecutedStep{Step: "bulk_create_adgroup_negative_keywords", Response: negativeResp})
+		}
 		if err != nil {
 			return result, fmt.Errorf("bulk create ad group negative keywords: %w", err)
 		}
-		result.Executed = append(result.Executed, ExecutedStep{Step: "bulk_create_adgroup_negative_keywords", Response: negativeResp})
 	}
 
 	if normalized.Creative.Kind != "" && normalized.Creative.Kind != "none" {
@@ -156,6 +165,15 @@ func (s PlanService) Create(input PlanCreateInput) (PlanCreateResult, error) {
 			return result, fmt.Errorf("create ad: %w", err)
 		}
 		result.Executed = append(result.Executed, ExecutedStep{Step: "create_ad", ID: adID, Response: adResp})
+	}
+	if normalized.CPAGoal != "" {
+		if verifier, ok := s.Provider.(CPAGoalVerifier); ok {
+			verification, err := verifier.VerifyCPAGoal(s.Client, campaignID, adGroupID, Money{Amount: normalized.CPAGoal, Currency: normalized.Currency})
+			result.CPAGoalVerification = &verification
+			if err != nil {
+				return result, err
+			}
+		}
 	}
 	return result, nil
 }

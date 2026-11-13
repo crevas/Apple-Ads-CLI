@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	DefaultProvider        = "campaignv5"
+	DefaultProvider        = "platform"
 	DefaultCampaignV5Base  = "https://api.searchads.apple.com/api/v5"
 	DefaultPlatformBase    = "https://api.ads.apple.com/v1"
 	DefaultLilyCloudBase   = "https://www.chatlily.ai"
@@ -145,7 +145,7 @@ func (c Config) ValidateProviderScope() error {
 		}
 	case "platform":
 		if strings.TrimSpace(c.AdAccountID) == "" {
-			return errors.New("APPLE_ADS_AD_ACCOUNT_ID is required for platform provider")
+			return errors.New("APPLE_ADS_AD_ACCOUNT_ID is required for Platform API v1 (the default); configure the verified ad account ID, or explicitly use --provider campaignv5 with APPLE_ADS_ORG_ID for legacy access")
 		}
 	default:
 		return fmt.Errorf("unsupported provider %q", c.Provider)
@@ -166,7 +166,9 @@ func ConfigPath() string {
 
 func NormalizeProvider(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case "", "v5", "legacy", "campaign-management-v5", "campaignv5":
+	case "":
+		return DefaultProvider
+	case "v5", "legacy", "campaign-management-v5", "campaignv5":
 		return "campaignv5"
 	case "platform", "platform-preview", "platformv1", "v1":
 		return "platform"

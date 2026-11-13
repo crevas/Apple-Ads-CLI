@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -14,7 +15,8 @@ import (
 // apple_sdk_contract_version.txt. Apple does not publish a Go client, so this
 // provider mirrors the generated request models and routes.
 type Provider struct {
-	AdAccountID string
+	AdAccountID                string
+	CPAGoalCompatibilityClient appleads.RequestContext
 }
 
 //go:embed apple_sdk_contract_version.txt
@@ -130,11 +132,33 @@ func (Provider) CreateAdGroup(ctx appleads.RequestContext, input appleads.AdGrou
 }
 
 func (Provider) BulkCreateKeywords(ctx appleads.RequestContext, keywords []appleads.KeywordCreate, allowPartial bool) (appleads.RawResponse, error) {
-	return ctx.Do("POST", "/keywords/bulk-create", keywordBulkPayload(keywords, allowPartial))
+	return bulkCreate(ctx, "/keywords/bulk-create", keywordBulkPayload(keywords, allowPartial), len(keywords))
 }
 
 func (Provider) BulkCreateNegativeKeywords(ctx appleads.RequestContext, keywords []appleads.NegativeKeywordCreate, allowPartial bool) (appleads.RawResponse, error) {
-	return ctx.Do("POST", "/negative-keywords/bulk-create", negativeBulkPayload(keywords, allowPartial))
+	return bulkCreate(ctx, "/negative-keywords/bulk-create", negativeBulkPayload(keywords, allowPartial), len(keywords))
+}
+
+func bulkCreate(ctx appleads.RequestContext, path string, body any, expected int) (appleads.RawResponse, error) {
+	response, err := ctx.Do("POST", path, body)
+	if err != nil {
+		return response, err
+	}
+	items, ok := response["result"].([]any)
+	if !ok || len(items) != expected {
+		return response, fmt.Errorf("bulk creation did not return all %d item results; inspect the response before retrying", expected)
+	}
+	seen := make(map[string]bool)
+	for _, value := range items {
+		item, ok := value.(map[string]any)
+		correlationID := fmt.Sprint(item["correlationId"])
+		index, parseErr := strconv.Atoi(correlationID)
+		if !ok || item["success"] != true || item["error"] != nil || appleads.ExtractID(appleads.RawResponse(item)) == "" || seen[correlationID] || parseErr != nil || index < 1 || index > expected {
+			return response, fmt.Errorf("bulk creation has a failed or unverified item (correlationId=%s); inspect the response before retrying", correlationID)
+		}
+		seen[correlationID] = true
+	}
+	return response, nil
 }
 
 func (Provider) CreateCreative(ctx appleads.RequestContext, input appleads.CreativeCreate) (appleads.RawResponse, string, error) {
@@ -194,6 +218,10 @@ func (p Provider) campaignPayload(input appleads.CampaignCreate) map[string]any 
 	if adAccountID == "" {
 		adAccountID = "$adAccountId"
 	}
+	supply := defaultString(input.Supply, "APPSTORE_SEARCH_RESULTS")
+	if supply == "APPSTORE_PRODUCT_PAGES_BROWSE" {
+		supply = "APPSTORE_PRODUCT_PAGES"
+	}
 	payload := map[string]any{
 		"adAccountId":        parseIDOrToken(adAccountID),
 		"name":               input.Name,
@@ -206,10 +234,11 @@ func (p Provider) campaignPayload(input appleads.CampaignCreate) map[string]any 
 			"bidStrategyGoal": "TAP",
 		},
 		"dailyBudget": map[string]any{
-			"value": appleads.Money{Amount: input.DailyBudget, Currency: input.Currency},
+			"value": appleads.Money{Amount: input.DailyBudget, Currency: appleads.NormalizeCurrency(input.Currency)},
 		},
 		"targeting": map[string]any{
-			"supplyPlacement": map[string]any{"include": []string{defaultString(input.Supply, "APPSTORE_SEARCH_RESULTS")}},
+			"supplySource":    map[string]any{"include": []string{"APPSTORE"}},
+			"supplyPlacement": map[string]any{"include": []string{supply}},
 			"countryOrRegion": map[string]any{"include": input.Countries},
 		},
 	}
@@ -233,12 +262,12 @@ func adGroupPayload(input appleads.AdGroupCreate) map[string]any {
 		"bidStrategy": map[string]any{
 			"bidStrategyType": "MANUAL_CPT",
 			"bidStrategyGoal": "TAP",
-			"bid":             appleads.Money{Amount: input.Bid, Currency: input.Currency},
+			"bid":             appleads.Money{Amount: input.Bid, Currency: appleads.NormalizeCurrency(input.Currency)},
 		},
 	}
 	if input.CPAGoal != "" {
 		payload["cpaCap"] = map[string]any{
-			"value": appleads.Money{Amount: input.CPAGoal, Currency: input.Currency},
+			"value": appleads.Money{Amount: input.CPAGoal, Currency: appleads.NormalizeCurrency(input.Currency)},
 		}
 	}
 	if input.StartTime != "" {
@@ -260,7 +289,7 @@ func keywordBulkPayload(keywords []appleads.KeywordCreate, allowPartial bool) ma
 				"text":      keyword.Text,
 				"status":    defaultString(keyword.Status, "ENABLED"),
 				"matchType": keyword.MatchType,
-				"bid":       appleads.Money{Amount: keyword.Bid, Currency: keyword.Currency},
+				"bid":       appleads.Money{Amount: keyword.Bid, Currency: appleads.NormalizeCurrency(keyword.Currency)},
 			},
 		})
 	}

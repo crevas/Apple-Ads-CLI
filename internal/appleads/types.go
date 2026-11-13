@@ -115,17 +115,29 @@ type PlanConfirmation struct {
 }
 
 type PlanCreateResult struct {
-	Tool           string            `json:"tool"`
-	Provider       string            `json:"provider"`
-	Mode           string            `json:"mode"`
-	CorrelationID  string            `json:"correlationId,omitempty"`
-	Review         PlanReview        `json:"review"`
-	Assumptions    []string          `json:"assumptions,omitempty"`
-	Planned        []PlannedRequest  `json:"planned"`
-	Executed       []ExecutedStep    `json:"executed,omitempty"`
-	NextActions    []string          `json:"nextActions,omitempty"`
-	Confirmation   *PlanConfirmation `json:"confirmation,omitempty"`
-	SafetyReminder string            `json:"safetyReminder,omitempty"`
+	Tool                string               `json:"tool"`
+	Provider            string               `json:"provider"`
+	Mode                string               `json:"mode"`
+	CorrelationID       string               `json:"correlationId,omitempty"`
+	Review              PlanReview           `json:"review"`
+	Assumptions         []string             `json:"assumptions,omitempty"`
+	Planned             []PlannedRequest     `json:"planned"`
+	Executed            []ExecutedStep       `json:"executed,omitempty"`
+	NextActions         []string             `json:"nextActions,omitempty"`
+	Confirmation        *PlanConfirmation    `json:"confirmation,omitempty"`
+	SafetyReminder      string               `json:"safetyReminder,omitempty"`
+	CPAGoalVerification *CPAGoalVerification `json:"cpaGoalVerification,omitempty"`
+	Error               string               `json:"error,omitempty"`
+}
+
+type CPAGoalVerification struct {
+	Status string `json:"status"`
+	Source string `json:"source"`
+	Actual *Money `json:"actual,omitempty"`
+}
+
+type CPAGoalVerifier interface {
+	VerifyCPAGoal(ctx RequestContext, campaignID, adGroupID string, expected Money) (CPAGoalVerification, error)
 }
 
 type CampaignCreate struct {
@@ -275,7 +287,7 @@ type RawResponse map[string]any
 func NormalizePlan(input PlanCreateInput) (PlanCreateInput, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	input.AppID = strings.TrimSpace(input.AppID)
-	input.Currency = strings.ToUpper(strings.TrimSpace(input.Currency))
+	input.Currency = NormalizeCurrency(input.Currency)
 	input.DailyBudget = strings.TrimSpace(input.DailyBudget)
 	input.AdGroupName = strings.TrimSpace(input.AdGroupName)
 	input.DefaultBid = strings.TrimSpace(input.DefaultBid)
@@ -328,6 +340,11 @@ func NormalizePlan(input PlanCreateInput) (PlanCreateInput, error) {
 	if input.Supply == "" {
 		input.Supply = "APPSTORE_SEARCH_RESULTS"
 	}
+	switch input.Supply {
+	case "APPSTORE_SEARCH_RESULTS", "APPSTORE_SEARCH_TAB", "APPSTORE_TODAY_TAB", "APPSTORE_PRODUCT_PAGES", "APPSTORE_PRODUCT_PAGES_BROWSE":
+	default:
+		return input, fmt.Errorf("unsupported App Store --supply %q", input.Supply)
+	}
 	if input.Creative.Kind == "" && input.Creative.CreativeID != "" {
 		input.Creative.Kind = "creative-id"
 	}
@@ -340,6 +357,10 @@ func NormalizePlan(input PlanCreateInput) (PlanCreateInput, error) {
 		return input, fmt.Errorf("invalid --creative value %q", input.Creative.Kind)
 	}
 
+	// Normalize copies so previews and retries do not mutate the caller's plan.
+	input.Keywords = append([]KeywordPlan(nil), input.Keywords...)
+	input.CampaignNegativeKeywords = append([]NegativeKeywordPlan(nil), input.CampaignNegativeKeywords...)
+	input.AdGroupNegativeKeywords = append([]NegativeKeywordPlan(nil), input.AdGroupNegativeKeywords...)
 	for index := range input.Keywords {
 		input.Keywords[index].Text = strings.TrimSpace(input.Keywords[index].Text)
 		input.Keywords[index].MatchType = strings.ToUpper(strings.TrimSpace(input.Keywords[index].MatchType))
@@ -472,7 +493,7 @@ func ExtractID(response RawResponse) string {
 		{"data", "id"},
 		{"id"},
 	} {
-		if value, ok := nested(response, path...); ok {
+		if value, ok := nested(map[string]any(response), path...); ok && value != nil {
 			return stringifyID(value)
 		}
 	}
@@ -499,7 +520,7 @@ func stringifyID(value any) string {
 	case string:
 		return typed
 	case float64:
-		return strconv.FormatInt(int64(typed), 10)
+		return strconv.FormatFloat(typed, 'f', -1, 64)
 	case int64:
 		return strconv.FormatInt(typed, 10)
 	case int:

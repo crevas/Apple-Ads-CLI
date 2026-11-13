@@ -12,6 +12,9 @@ Use `lily` as a business-first Apple Ads CLI. Keep Apple Ads operations tied to 
 ## Core Rules
 
 - Start with `lily ads doctor` before calling Apple Ads APIs.
+- New builds default to Platform API v1; explicit v5 configuration remains effective. Check the reported provider and configure `APPLE_ADS_AD_ACCOUNT_ID` for v1. Never substitute a legacy org ID without verifying the account mapping.
+- `--cpa-goal` is an ad group CPA Goal with manual CPT bidding. On v1, inspect `cpaGoalVerification`; missing or mismatched readback is not verified success. An omitted v1 value can use a read-only v5 check only with an explicitly configured `APPLE_ADS_ORG_ID`.
+- On execution failure, inspect JSON `executed`, `error`, and any bulk item results before retrying. Some resources may already exist; never automatically rerun the whole creation package.
 - Use local `APPLE_ADS_*` credentials for Apple Ads campaign, ad group, keyword, creative, and report operations.
 - Treat `lily login` as optional. It only enables Lily Ads Revenue Analytics revenue, paid-user, profit, and ROAS enrichment.
 - Never say Apple Ads operations require Lily login.

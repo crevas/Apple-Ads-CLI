@@ -216,7 +216,7 @@ func TestPlatformOpportunityCommandRequiresPlatformProvider(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	code := Run(context.Background(), []string{
-		"ads", "suggestions", "keywords", "--app-id", "999999999",
+		"--provider", "campaignv5", "ads", "suggestions", "keywords", "--app-id", "999999999",
 	}, &stdout, &stderr)
 	if code != 1 {
 		t.Fatalf("Run returned code %d, want 1", code)
@@ -301,4 +301,43 @@ func toString(value any) string {
 		return ""
 	}
 	return strings.TrimSpace(fmt.Sprint(value))
+}
+
+func TestDefaultProviderDiagnosticsAndFlagOverride(t *testing.T) {
+	t.Setenv("LILY_ADS_CONFIG", t.TempDir()+"/config.json")
+	t.Setenv("APPLE_ADS_PROVIDER", "")
+	t.Setenv("LILY_ADS_PROVIDER", "")
+	for _, tc := range []struct {
+		args        []string
+		field, want string
+	}{
+		{[]string{"ads", "doctor"}, "provider", "platform"},
+		{[]string{"ads", "platform", "readiness"}, "defaultProvider", "platform"},
+		{[]string{"ads", "plan", "recommend", "--app-id", "123", "--country", "US"}, "provider", "platform"},
+		{[]string{"--provider", "v5", "ads", "plan", "recommend", "--app-id", "123", "--country", "US"}, "provider", "campaignv5"},
+	} {
+		var stdout, stderr bytes.Buffer
+		if code := Run(context.Background(), tc.args, &stdout, &stderr); code != 0 {
+			t.Fatalf("exit %d: %s", code, stderr.String())
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload[tc.field] != tc.want {
+			t.Fatalf("%s = %v, want %s", tc.field, payload[tc.field], tc.want)
+		}
+	}
+	t.Setenv("APPLE_ADS_PROVIDER", "campaignv5")
+	var stdout, stderr bytes.Buffer
+	if code := Run(context.Background(), []string{"--provider", "v1", "ads", "doctor"}, &stdout, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["provider"] != "platform" {
+		t.Fatal("flag must override environment")
+	}
 }

@@ -1,7 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-11-13
 
+- Defaults to Platform API v1, preserving explicit v5 file, environment, and CLI
+  overrides; updates help, readiness diagnostics, and migration guidance.
+- Aligns CNY/RMB Money handling and legacy product-page placement aliases with
+  the Web fixes, preserving manual CPT bidding and negative-keyword scope.
+- Verifies an explicitly requested CPA Goal from saved ad group data. Only an
+  omitted v1 value allows a read-only v5 check with an explicitly configured org.
+- Fixes created-resource ID extraction from decoded v1/v5 response maps.
+- Rejects failed/incomplete Platform bulk item results and preserves created IDs
+  and partial results in JSON on execution failures to support safe recovery.
 - Updates the reviewed Apple Ads SDK contract from 1.109.0 to 1.117.0 after
   checking the published request models, routes, enums, and response changes.
   Existing Platform commands require no request changes; live compatibility

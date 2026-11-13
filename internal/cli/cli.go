@@ -18,7 +18,7 @@ import (
 	"github.com/crevas/Apple-Ads-CLI/internal/providers/platform"
 )
 
-const version = "0.2.3"
+const version = "0.3.0"
 
 type globalOptions struct {
 	Provider string
@@ -253,7 +253,7 @@ func runPlatform(args []string, stdout io.Writer, stderr io.Writer) int {
 		return printValue(stdout, "json", map[string]any{
 			"tool":               "Apple Ads CLI by Lily",
 			"platformApiReady":   true,
-			"defaultProvider":    "campaignv5",
+			"defaultProvider":    config.DefaultProvider,
 			"v5RetirementDate":   "2027-01-26",
 			"platformContract":   "@apple/apple-ads-platform " + platform.SDKContractVersion(),
 			"supportedProviders": []string{"campaignv5", "platform"},
@@ -266,8 +266,8 @@ func runPlatform(args []string, stdout io.Writer, stderr io.Writer) int {
 				"businessPlanCommand":   "lily ads plan create",
 			},
 			"notes": []string{
-				"Platform provider is available behind --provider platform.",
-				"Platform API v1 is generally available. campaignv5 remains the compatibility default during migration and retires on 2027-01-26.",
+				"Platform API v1 is the default. Explicit file, environment, and --provider overrides are preserved.",
+				"Configure APPLE_ADS_AD_ACCOUNT_ID for v1; use --provider campaignv5 for legacy access until its retirement on 2027-01-26.",
 			},
 			"readOnlyOpportunityCommands": []string{
 				"suggestions keywords",
@@ -1036,6 +1036,11 @@ func runPlan(ctx context.Context, args []string, globals globalOptions, stdout i
 	service := appleads.PlanService{Provider: provider, Client: client}
 	result, err := service.Create(input)
 	if err != nil {
+		if result.Mode == "execute" {
+			result.Error = err.Error()
+			result.NextActions = []string{"Inspect executed resource IDs before retrying; creation is not atomic and rerunning can create duplicates."}
+			printValue(stdout, globals.Output, result, stderr)
+		}
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
@@ -1074,7 +1079,7 @@ func parsePlanCreate(args []string) (appleads.PlanCreateInput, error) {
 	flags.StringVar(&input.DailyBudget, "daily-budget", "", "campaign daily budget amount")
 	flags.StringVar(&input.AdGroupName, "adgroup", "", "ad group name")
 	flags.StringVar(&input.DefaultBid, "bid", "", "default keyword/ad group bid")
-	flags.StringVar(&input.CPAGoal, "cpa-goal", "", "optional target CPA / CPA goal")
+	flags.StringVar(&input.CPAGoal, "cpa-goal", "", "optional ad group CPA Goal (not campaign Target CPA); verified after creation")
 	flags.StringVar(&keywords, "keywords", "", "comma-separated exact keywords")
 	flags.StringVar(&exactKeywords, "exact-keywords", "", "comma-separated exact keywords")
 	flags.StringVar(&broadKeywords, "broad-keywords", "", "comma-separated broad keywords")
@@ -1123,8 +1128,8 @@ func buildProvider(ctx context.Context, cfg config.Config, verbose bool, logWrit
 	var baseURL string
 	var contextHeader string
 
-	switch strings.ToLower(cfg.Provider) {
-	case "campaignv5", "":
+	switch config.NormalizeProvider(cfg.Provider) {
+	case "campaignv5":
 		provider = campaignv5.New(cfg.OrgID)
 		baseURL = cfg.CampaignV5Base
 		contextHeader = "orgId=" + cfg.OrgID
@@ -1153,6 +1158,15 @@ func buildProvider(ctx context.Context, cfg config.Config, verbose bool, logWrit
 	client := appleads.NewClient(baseURL, contextHeader, cfg.Timeout(), tokenSource)
 	client.Verbose = verbose
 	client.LogWriter = logWriter
+	if p, ok := provider.(platform.Provider); ok && cfg.OrgID != "" {
+		// Used only for an explicitly requested CPA Goal omitted from v1 GET.
+		// Never infer the legacy org from the v1 ad account or replay writes.
+		legacy := appleads.NewClient(cfg.CampaignV5Base, "orgId="+cfg.OrgID, cfg.Timeout(), tokenSource)
+		legacy.Verbose = verbose
+		legacy.LogWriter = logWriter
+		p.CPAGoalCompatibilityClient = legacy
+		provider = p
+	}
 	return provider, client, nil
 }
 
@@ -1271,7 +1285,7 @@ func printHelp(w io.Writer) {
 		"  lily --provider platform ads change-history <query|detail> [flags]",
 		"",
 		"Global flags:",
-		"  --provider campaignv5|platform   API provider (default: campaignv5)",
+		"  --provider platform|campaignv5   API provider (default: platform / v1)",
 		"  -o, --output json                output format",
 		"  -v, --verbose                    verbose API logging",
 		"",
